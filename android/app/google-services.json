@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "990750721571",
-    "project_id": "dkbranch-a0534",
-    "storage_bucket": "dkbranch-a0534.firebasestorage.app"
+    "project_number": "47864120198",
+    "project_id": "dokirana-85740",
+    "storage_bucket": "dokirana-85740.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:990750721571:android:55e5efe1f03c4b8f479396",
+        "mobilesdk_app_id": "1:47864120198:android:9bb520f3b5c5431709a207",
         "android_client_info": {
           "package_name": "com.dkbranch"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBkQwVdvInmUhoRsDzQtFeXhjlgBU4K2wI"
+          "current_key": "AIzaSyDXmo4lw9aTw3kB_Ur-kSQobR2-GJTA4zU"
         }
       ],
       "services": {

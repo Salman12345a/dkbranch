@@ -238,12 +238,13 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
                         
                         try {
                             // Join branch room
-                            val joinData = JSONObject().apply {
-                                put("event", "joinBranch")
+                            val joinPayload = JSONObject().apply {
                                 put("branchId", branchId)
-                                put("token", token) // Include token for auth
+                                put("token", token)
                             }
-                            webSocket.send(joinData.toString())
+                            val branchRoom = "branch_${branchId}"
+        val branchPayload = JSONObject().apply { put("roomId", branchRoom) }
+        socketEmit("joinRoom", branchPayload)
                             Log.d(TAG, "Join branch message sent for: $branchId")
 
                             // Join existing order rooms from database
@@ -251,11 +252,8 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
                                 try {
                                     database.orderDao().getOrdersForBranch(branchId).collect { orders ->
                                         orders.forEach { order ->
-                                            val joinRoomData = JSONObject().apply {
-                                                put("event", "joinRoom")
-                                                put("roomId", order.orderId)
-                                            }
-                                            webSocket.send(joinRoomData.toString())
+                                            val roomPayload = JSONObject().apply { put("roomId", order.orderId) }
+                                            socketEmit("joinRoom", roomPayload)
                                             Log.d(TAG, "Joined existing order room: ${order.orderId}")
                                         }
                                     }
@@ -273,6 +271,46 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
                     }
 
                     override fun onMessage(webSocket: WebSocket, text: String) {
+                    // Handle Engine.IO control packets
+                    if (text == "2") {
+                        // Server ping – respond with pong
+                        webSocket.send("3")
+                        return
+                    }
+                    if (text == "3" || text.startsWith("0")) {
+                        return // ignore heartbeats / connect packets
+                    }
+
+                    var payloadText = text
+                    var event: String? = null
+                    var dataObject: JSONObject? = null
+
+                    // Socket.IO message packets start with 42
+                    if (text.startsWith("42")) {
+                        val jsonPart = text.substring(2)
+                        try {
+                            val arr = JSONArray(jsonPart)
+                            if (arr.length() > 0) {
+                                event = arr.getString(0)
+                            }
+                            if (arr.length() > 1) {
+                                dataObject = arr.getJSONObject(1)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to parse socket.io frame: ${e.message}")
+                        }
+                    } else {
+                        // Fallback: treat whole text as JSON (old behaviour)
+                        try {
+                            val messageJson = JSONObject(text)
+                            event = messageJson.optString("event")
+                            dataObject = messageJson.optJSONObject("data") ?: messageJson
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Unrecognised message: $text")
+                        }
+                    }
+
+                    if (event == null || dataObject == null) return
                         Log.d(TAG, "WebSocket message received (raw): $text")
                         Log.d(TAG, "Receiving: $text")
                         try {
@@ -280,7 +318,7 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
                             val event = messageJson.optString("event")
                             val dataObject = messageJson.optJSONObject("data") ?: messageJson // Fallback if data is not nested
 
-                            if (event == "newOrder" || event == "orderUpdate") {
+                            if (event == "newOrder" || event == "orderStatusUpdate" || event == "orderModified") {
                                 scope.launch {
                                     try {
                                         val orderId = dataObject.optString("orderId", dataObject.optString("_id"))
@@ -387,20 +425,11 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
     }
 
     private fun sendKeepAlivePing() {
-        if (isConnected && webSocket != null) {
-            try {
-                val pingData = JSONObject().apply {
-                    put("event", "ping")
-                    put("timestamp", System.currentTimeMillis())
-                }
-                webSocket?.send(pingData.toString())
-                Log.v(TAG, "Sent keep-alive ping: $pingData")
-                Log.d(TAG, "Sent keep-alive ping")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending keep-alive ping: ${e.message}", e)
-            }
-        }
+    // Socket.IO ping for Engine.IO v4 is just "2"
+    if (isConnected && webSocket != null) {
+        webSocket?.send("2")
     }
+}
     
     // Start periodic heartbeat to keep connection alive
     private fun startHeartbeat() {
@@ -445,10 +474,18 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
     }
 
 
+    private fun socketEmit(event: String, data: JSONObject? = null) {
+        val arr = JSONArray().apply {
+            put(event)
+            data?.let { put(it) }
+        }
+        webSocket?.send("42$arr")
+    }
+
     fun emit(event: String, data: JSONObject) {
         if (isConnected && webSocket != null) {
             try {
-                webSocket?.send(data.toString())
+                socketEmit(event, data)
             } catch (e: Exception) {
                 Log.e(TAG, "Error emitting event: ${e.message}")
             }

@@ -73,7 +73,10 @@ const WalletScreen = () => {
       storage.set('walletBalance', balanceData.balance);
 
       // Map transactions to include orderNumber from orders
-      const transactions = transactionsData.transactions.map(t => ({
+      const transactions = transactionsData.transactions
+        // Ensure newest transactions appear first
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .map(t => ({
         ...t,
         status: t.type === 'platform_charge' ? 'settled' : 'pending',
         orderNumber:
@@ -81,7 +84,10 @@ const WalletScreen = () => {
       }));
       setWalletTransactions(transactions);
 
-      const payments = paymentsData.payments.map(p => ({
+      const payments = paymentsData.payments
+        // Ensure newest payments appear first
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .map(p => ({
         ...p,
         status: 'completed' as const,
       }));

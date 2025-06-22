@@ -1,6 +1,7 @@
 package com.dkbranch.socket
 
 import android.content.Intent
+import android.os.Build
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.dkbranch.socket.data.AppDatabase
@@ -63,7 +64,11 @@ class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBas
             
             // Start or restart service
             reactApplicationContext.stopService(serviceIntent) // Stop if already running
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            reactApplicationContext.startForegroundService(serviceIntent)
+        } else {
             reactApplicationContext.startService(serviceIntent)
+        }
             
             // Also connect manager if needed (it will be connected by the service)
             if (!socketManager.isConnected()) {
@@ -119,7 +124,11 @@ class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBas
                     
                     // Start or restart service
                     reactApplicationContext.stopService(serviceIntent) // Stop if already running
-                    reactApplicationContext.startService(serviceIntent)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            reactApplicationContext.startForegroundService(serviceIntent)
+        } else {
+            reactApplicationContext.startService(serviceIntent)
+        }
                     
                     // Ensure socket manager is also connected
                     if (!socketManager.isConnected()) {

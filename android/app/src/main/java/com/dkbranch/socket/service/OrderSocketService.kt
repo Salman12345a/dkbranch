@@ -121,11 +121,15 @@ class OrderSocketService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val branchId = intent?.getStringExtra("branchId")
-        val token = intent?.getStringExtra("token")
-        val socketUrl = intent?.getStringExtra("socketUrl")
-        val isStoreOpen = intent?.getBooleanExtra("isStoreOpen", false) ?: false
-        val startedFromBoot = intent?.getBooleanExtra("started_from_boot", false) ?: false
+        // Attempt to pull credentials either from intent or from encrypted preferences when
+    // the system restarts the service with a null / empty intent (API will deliver null).
+    val prefs = EncryptedSharedPreferencesManager(this)
+
+    val branchId = intent?.getStringExtra("branchId") ?: prefs.getBranchId(this)
+    val token = intent?.getStringExtra("token") ?: prefs.getToken(this)
+    val socketUrl = intent?.getStringExtra("socketUrl")
+    val isStoreOpen = intent?.getBooleanExtra("isStoreOpen", prefs.getStoreStatus(this)) ?: prefs.getStoreStatus(this)
+    val startedFromBoot = intent?.getBooleanExtra("started_from_boot", false) ?: false
 
         Log.i(TAG, "OrderSocketService onStartCommand - Intent action: ${intent?.action}, Store Open: $isStoreOpen, Token Present: ${token != null}")
 

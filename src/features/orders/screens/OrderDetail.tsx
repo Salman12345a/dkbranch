@@ -551,6 +551,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
             ItemSeparatorComponent={renderItemSeparator}
             renderItem={({item}) => (
             <View style={[styles.itemRow, modificationSubmitted && (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemRow]}>
+              <Image source={{ uri: item.item.imageUrl || item.item.image }} style={styles.productImage} />
               <View style={styles.itemDetails}>
                 <View style={styles.nameContainer}>
                   <Text style={[styles.itemName, modificationSubmitted && (item.isIncluded === false || getItemCount(item._id) === 0) && styles.removedItemText]}>{item.item.name}</Text>
@@ -570,7 +571,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({route, navigation}) => {
                 
                 {/* Display unit price and calculated price for loose products */}
                 <View>
-                  <Text style={styles.itemPrice}>₹{item.item.price}/{item.item.unit || 'unit'}</Text>
+                  <Text style={styles.itemPrice}>
+  ₹{item.item.price}/
+  {item.item.quantity
+    ? `${item.item.quantity} ${item.item.unit || 'unit'}`
+    : item.item.unit || 'unit'}
+</Text>
                   {item.item.isPacket === false && (
                     <View>
                       {/* Show only the final price for loose products */}
@@ -878,6 +884,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: '#ffffff',
+  },
+  productImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 4,
+    marginRight: 12,
+    backgroundColor: '#F3F4F6',
   },
   itemDetails: {
     flex: 1,
