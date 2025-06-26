@@ -20,6 +20,7 @@ import { inventoryService } from '../../../services/inventoryService';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
+import ImageResizer from 'react-native-image-resizer';
 
 type UploadProductImageRouteProp = RouteProp<RootStackParamList, 'UploadProductImage'>;
 
@@ -31,6 +32,28 @@ const UploadProductImage = () => {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Resize/crop the selected image to a 500x500px square before we store it.
+  const cropImageToSquare = async (uri: string) => {
+    try {
+      const resizedImage = await ImageResizer.createResizedImage(
+        uri,
+        500,
+        500,
+        'JPEG',
+        100,
+        0,
+        undefined,
+        false,
+        { mode: 'cover' } // `cover` keeps the aspect ratio while ensuring exact size.
+      );
+      setImageUri(resizedImage.uri);
+    } catch (err) {
+      console.error('Error resizing image:', err);
+      // Fallback to the original image if resizing fails.
+      setImageUri(uri);
+    }
+  };
   
   // Handle image selection
   const handleSelectImage = () => {
@@ -114,7 +137,7 @@ const UploadProductImage = () => {
           console.log('Camera Error:', response.errorMessage);
           Alert.alert('Error', response.errorMessage || 'Failed to open camera');
         } else if (response.assets && response.assets[0].uri) {
-          setImageUri(response.assets[0].uri);
+          cropImageToSquare(response.assets[0].uri);
         }
       }
     );
@@ -136,7 +159,7 @@ const UploadProductImage = () => {
           console.log('ImagePicker Error:', response.errorMessage);
           Alert.alert('Error', response.errorMessage || 'Failed to open gallery');
         } else if (response.assets && response.assets[0].uri) {
-          setImageUri(response.assets[0].uri);
+          cropImageToSquare(response.assets[0].uri);
         }
       }
     );
