@@ -1,0 +1,106 @@
+src/
+├── assets
+│   ├── animations
+│       ├── confirm.json
+│       ├── delivery_man.json
+│       └── raining.json
+│  
+├── components
+│   ├── common
+│   │   ├── Header.tsx
+│   │   ├── CongratulationsModel.tsx
+│   │   ├── LowBalanceModal.tsx
+│   │   └── UniversalAdd.tsx
+│   ├── dashboard
+│   │   ├── Header.tsx
+│   │   └── StoreStatusToggle.tsx
+│   ├── delivery
+│   │   └── DeliveryServiceToggle.tsx
+│   ├── order
+│   │   └── OrderCard.tsx
+│   ├── storemanage
+│   │   ├── FinancialSummary.js
+│   │   |── SyncmartManagement.tsx
+│   |   |── InventoryItem.js
+│   └── ui
+│       ├── ArrowButton.tsx
+│       ├── CustomButton.tsx
+│       ├── CustomHeader.tsx
+│       ├── Custominput.tsx
+│       └── ScalePress.tsx
+├── features
+│   ├── auth
+│   │   └── screens
+│   │       ├── AuthenticationScreen.tsx
+│   │       |── EntryScreen.tsx
+│   │       |── OTPVerificationScreen.tsx
+│   │       |── PhoneNumberScreen.tsx
+│   │       └── UserDetailsScreen.tsx
+│   ├── branch
+│   │   └── screens
+│   │   |   |── BranchAuth.tsx
+│   │   |   |── StatusScreen.tsx
+│   │   |   └── UploadBranchDocs.tsx
+│   |   |
+|   |   └── components
+│   |       ├── CelebrationAnimation.tsx
+|   |
+│   ├── common
+│   │   └── screens
+│   │       ├── HelpScreen.tsx
+│   │       └── SplashScreen.tsx
+│   ├── delivery
+│   │   └── screens
+│   │       ├── AssignDeliveryPartner.tsx
+│   │       |── DeliveryPartnerAuth.tsx
+│   │       |── DeliveryReRegistration.tsx
+│   │       |── DeliveryService.tsx
+│   │       |── DeliveryStatus.tsx
+│   │       |── ReUploadDocument.tsx
+│   │       |── ReUploadPartnerPhoto.tsx
+│   │       |── SuccessScreen.tsx
+│   │       |── UploadDocument.tsx
+│   │       └── UploadPartnerPhoto.tsx
+|   |        
+│   ├── financial
+│   │   └── screens
+│   │       ├── FinancialSummaryScreen.js
+│   │       └── WalletScreen.tsx
+│   ├── inventory
+│   │   └── screens
+│   │       ├── AddProduct.tsx
+│   │       └── InventoryItemDisplay.tsx
+│   ├── native
+│   │   └── OrderSocket.tsx
+│   │       
+│   │       
+│   └── orders
+│       └── screens
+│           ├── HomeScreen.tsx
+│           ├── OrderDetail.tsx
+│           |── OrderHasPacked.tsx
+│           |── MainPackedScreen.tsx
+│           |── SaleSummaryScreen.tsx
+│           |── OrderHistory.tsx
+│           └── OrderManagementScreen.js
+├── navigation
+│   ├── AppNavigator.tsx
+│   ├── BottomTabNavigator.tsx
+│   ├── Sidebar.tsx
+│   └── types.ts
+├── services
+│   ├── api.ts
+│   └── socket.ts
+├── store
+│   └── ordersStore.ts
+├── types
+│   └── react-native-switch-selector.d.ts
+|── utils
+|    ├── Constants.tsx
+|    ├── CustomMap.tsx
+|    ├── DateUtils.tsx
+|    ├── dummyData.tsx
+|    ├── NavigationUtils.tsx
+|    ├── Scaling.tsx
+|    └── storage.ts
+|── config.ts

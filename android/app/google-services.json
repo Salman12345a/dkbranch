@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "47864120198",
+    "project_id": "dokirana-85740",
+    "storage_bucket": "dokirana-85740.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47864120198:android:9bb520f3b5c5431709a207",
+        "android_client_info": {
+          "package_name": "com.dkbranch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXmo4lw9aTw3kB_Ur-kSQobR2-GJTA4zU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
