@@ -64,16 +64,13 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
     const customerPlatformCharge = isPickupOrder
       ? calculatePlatformCharge(orderTotal)
       : 0;
-    const branchPlatformCharge = isPickupOrder
-      ? calculatePlatformCharge(orderTotal)
-      : 0;
 
     return {
       orderTotal,
       customerPlatformCharge,
       finalCustomerTotal: orderTotal + customerPlatformCharge,
-      branchPlatformCharge,
-      branchReceives: orderTotal - branchPlatformCharge,
+      branchPlatformCharge: 0, // No platform charge for the branch
+      branchReceives: orderTotal, // Branch receives the full amount
       isPickupOrder,
     };
   }, [orderState.totalPrice, orderState.deliveryEnabled]);
@@ -103,11 +100,16 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
                   {item.item.name || 'Unknown Item'}
                 </Text>
                 <Text style={styles.itemMeta}>
-                  {item.count} x ₹{(item.item.price || 0).toFixed(2)}
+                  {item.item.isPacket === false
+                    ? `${item.quantity} ${item.item.unit}`
+                    : `${item.count} x ₹${(item.item.price || 0).toFixed(2)}`}
                 </Text>
               </View>
               <Text style={styles.itemTotal}>
-                ₹{((item.item.price || 0) * item.count).toFixed(2)}
+                ₹
+                {item.item.isPacket === false
+                  ? (item.finalPrice || 0).toFixed(2)
+                  : ((item.item.price || 0) * item.count).toFixed(2)}
               </Text>
             </View>
           )}
@@ -138,13 +140,7 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
                 ₹{orderCalculations.finalCustomerTotal.toFixed(2)}
               </Text>
             </View>
-            <View style={styles.divider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Branch Platform Fee</Text>
-              <Text style={styles.summaryValue}>
-                -₹{orderCalculations.branchPlatformCharge.toFixed(2)}
-              </Text>
-            </View>
+
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabelBold}>Branch Receives</Text>
               <Text style={styles.branchTotal}>
