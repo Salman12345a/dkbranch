@@ -49,7 +49,7 @@ const UploadProductImage = () => {
         uri,
         500,
         500,
-        'PNG', // Use PNG to preserve transparency
+        'JPEG', // Always convert to JPEG for consistent uploads
         100,
         0,
         undefined,
@@ -57,21 +57,7 @@ const UploadProductImage = () => {
         { mode: 'cover' }
       );
       setImageUri(resizedImage.uri);
-      // If your inventoryService requires JPEG, uncomment the following:
-      /*
-      const jpegImage = await ImageResizer.createResizedImage(
-        resizedImage.uri,
-        500,
-        500,
-        'JPEG',
-        100,
-        0,
-        undefined,
-        false,
-        { mode: 'cover' }
-      );
-      setImageUri(jpegImage.uri);
-      */
+      
     } catch (err) {
       console.error('Error resizing image:', err);
       setImageUri(uri); // Fallback to original URI

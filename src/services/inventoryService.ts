@@ -344,13 +344,8 @@ export const inventoryService = {
 
   uploadImageToPresignedUrl: async (presignedUrl: string, imageUri: string) => {
     try {
-      // Determine content type based on image URI extension
-      let contentType = 'image/jpeg';
-      if (imageUri.toLowerCase().endsWith('.png')) {
-        contentType = 'image/png';
-      } else if (imageUri.toLowerCase().endsWith('.jpg') || imageUri.toLowerCase().endsWith('.jpeg')) {
-        contentType = 'image/jpeg';
-      }
+      // Always upload as JPEG to match the value used when signing the URL
+      const contentType = 'image/jpeg';
       
       console.log('Uploading image with content type:', contentType);
       
