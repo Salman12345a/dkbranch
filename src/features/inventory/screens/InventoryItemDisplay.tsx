@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ToastAndroid, ActivityIndicator, Alert } from 'react-native';
+import { useStore } from '../../../store/ordersStore';
 import { Icon } from '@rneui/themed';
 import api from '../../../services/api';
 import { Tab, TabView } from '@rneui/themed';
@@ -12,6 +13,7 @@ import { InventoryItemDisplayNavigationProp } from '../../../navigation/types';
 import { storage } from '../../../utils/storage';
 
 const InventoryItemDisplay = () => {
+  const { storeStatus } = useStore();
   const navigation = useNavigation<InventoryItemDisplayNavigationProp>();
   const route = useRoute();
   const {
@@ -329,6 +331,15 @@ const InventoryItemDisplay = () => {
 
   // renderProductItem moved to ProductsScreen
 
+  // Handler for Create Category that blocks when store is open
+  const handleCreateCategory = () => {
+    if (storeStatus === 'open') {
+      Alert.alert('Store Open', 'To create a custom category, you have to close the store.', [{ text: 'OK' }]);
+      return;
+    }
+    navigation.navigate('CreateCustomCategories');
+  };
+
   const renderCategories = () => {
     const activeCategories = categories.branch;
     // Default and custom filtered lists
@@ -432,7 +443,7 @@ const InventoryItemDisplay = () => {
                       <Text style={styles.emptyStateText}>No custom categories yet. Create one!</Text>
                       <CustomButton
                         title="Create Category"
-                        onPress={() => navigation.navigate('CreateCustomCategories')}
+                        onPress={handleCreateCategory}
                       />
                     </View>
                   ) : (
@@ -465,7 +476,7 @@ const InventoryItemDisplay = () => {
                       )}
                       {!customDeletionMode && (
                         <View style={styles.addButtonContainer}>
-                          <CustomButton title="Create Category" onPress={() => navigation.navigate('CreateCustomCategories')} />
+                          <CustomButton title="Create Category" onPress={handleCreateCategory} />
                         </View>
                       )}
                     </>

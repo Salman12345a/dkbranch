@@ -1,4 +1,18 @@
 import api from './api';
+
+export const createCustomProduct = async (branchId: string, formData: FormData) => {
+  try {
+    const response = await api.post(`/branch/${branchId}/products`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error creating custom product:', error);
+    throw error;
+  }
+};
 import {storage} from '../utils/storage';
 
 export interface Category {

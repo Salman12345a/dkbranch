@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Tab, TabView } from '@rneui/themed';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import useInventoryStore from '../../../store/inventoryStore';
+import { useStore } from '../../../store/ordersStore';
 import { Product, Category } from '../../../services/inventoryService';
 import inventoryService from '../../../services/inventoryService';
 import CustomHeader from '../../../components/ui/CustomHeader';
@@ -18,6 +19,7 @@ import { ToastAndroid } from 'react-native';
 type ProductsScreenProps = StackScreenProps<RootStackParamList, 'ProductsScreen'>;
 
 const ProductsScreen = () => {
+    const { storeStatus } = useStore();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const route = useRoute<ProductsScreenProps['route']>();
   const {
@@ -28,7 +30,7 @@ const ProductsScreen = () => {
     toggleProductSelection,
     setActiveProductTab,
     clearProductSelections,
-    deleteCustomProducts
+    deleteCustomProducts,
   } = useInventoryStore();
 
   const [productIndex, setProductIndex] = React.useState(0);
@@ -139,10 +141,16 @@ const ProductsScreen = () => {
   };
   
   const navigateToCreateProduct = () => {
+    if (storeStatus === 'open') {
+      Alert.alert('Store Open', 'To create a new product, you have to close the store.', [{ text: 'OK' }]);
+      return;
+    }
     navigation.navigate('CustomProducts', {
       categoryId,
       categoryName,
-      isCustom: true
+      isCustom: true,
+      isDefault,
+      defaultCategoryId,
     });
   };
 

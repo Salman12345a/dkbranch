@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -18,7 +19,10 @@ import { RootStackParamList } from '../../../navigation/types';
 import { storage } from '../../../utils/storage';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
-import { inventoryService, CustomProductData } from '../../../services/inventoryService';
+import { inventoryService, createCustomProduct } from '../../../services/inventoryService';
+import { launchImageLibrary, Asset } from 'react-native-image-picker';
+import ImageResizer from 'react-native-image-resizer';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Picker } from '@react-native-picker/picker';
 
 type CustomProductsRouteProp = RouteProp<RootStackParamList, 'CustomProducts'>;
@@ -26,7 +30,7 @@ type CustomProductsRouteProp = RouteProp<RootStackParamList, 'CustomProducts'>;
 const CustomProducts = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const route = useRoute<CustomProductsRouteProp>();
-  const { categoryId, categoryName } = route.params;
+  const { categoryId, categoryName, isDefault, defaultCategoryId } = route.params;
   
   // Get branchId from storage
   const branchId = storage.getString('userId') || '';
@@ -41,6 +45,51 @@ const CustomProducts = () => {
   const [isPacket, setIsPacket] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [image, setImage] = useState<Asset | null>(null);
+
+  // Resize/compress selected image
+  const compressImage = async (asset: Asset): Promise<Asset> => {
+    if (!asset.uri) return asset;
+    try {
+      const resized = await ImageResizer.createResizedImage(
+        asset.uri,
+        1024,
+        1024,
+        'JPEG',
+        70,
+        0,
+        undefined,
+        false,
+        { mode: 'contain', onlyScaleDown: true }
+      );
+      return {
+        ...asset,
+        uri: resized.uri,
+        type: 'image/jpeg',
+        fileName: resized.name || asset.fileName || 'image.jpg',
+        fileSize: resized.size,
+      } as Asset;
+    } catch (e) {
+      console.warn('Image compression failed, using original image', e);
+      return asset;
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.5,
+      });
+      if (!result.didCancel && result.assets && result.assets.length > 0) {
+        const compressed = await compressImage(result.assets[0]);
+        setImage(compressed);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pick image');
+      console.error('Image picker error:', err);
+    }
+  };
   
   // Unit options for packaged products
   const packetUnitOptions = [
@@ -86,223 +135,156 @@ const CustomProducts = () => {
   };
   
   // Handle next button press
-  const handleNext = async () => {
-    if (!validateForm()) return;
-    
-    setLoading(true);
+  const handleSubmit = async () => {
     setError('');
-    
+    if (!name.trim() || !price.trim()) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    setLoading(true);
+
+    const formData = new FormData();
+    formData.append('name', name.trim());
+    formData.append('price', price.trim());
+    formData.append('discountPrice', discountPrice.trim() || '0');
+    formData.append('quantity', quantity.trim() || '1');
+    formData.append('unit', unit);
+    formData.append('description', description.trim());
+    formData.append('isPacket', String(isPacket));
+    formData.append('categoryId', categoryId);
+    formData.append('branchId', branchId);
+
+    if (image && image.uri) {
+      formData.append('productImage', {
+        uri: image.uri,
+        name: image.fileName || 'image.jpg',
+        type: image.type || 'image/jpeg',
+      } as any);
+    }
+
     try {
-      // First try with the original name
-      // Prepare product data
-      const productData: CustomProductData = {
-        name, // Use the original name first
-        price: Number(price),
-        categoryId,
-        branchId,
-        isPacket,
-        description: description.trim() || 'Test product description',
-      };
-      
-      // Add optional fields if provided
-      if (discountPrice.trim()) {
-        productData.discountPrice = Number(discountPrice);
-      } else {
-        // Default discount price to 90 if not provided (as shown in the example)
-        productData.discountPrice = 90;
-      }
-      
-      if (quantity.trim()) {
-        productData.quantity = Number(quantity);
-      } else {
-        // Default quantity to 10 if not provided (as shown in the example)
-        productData.quantity = 10;
-      }
-      
-      if (unit) {
-        productData.unit = unit;
-      }
-      
-      console.log('Sending product data:', JSON.stringify(productData));
-      
-      try {
-        // First attempt with original name
-        const response = await inventoryService.createCustomProduct(productData);
-        
-        // Get product ID from response
-        const productId = response._id;
-        
-        // Get image upload URL
-        const uploadUrlResponse = await inventoryService.getProductImageUploadUrl(branchId, productId);
-        
-        // Navigate to upload image screen
-        navigation.navigate('UploadProductImage', {
-          productId,
-          uploadUrl: uploadUrlResponse.uploadUrl,
-          key: uploadUrlResponse.key,
-          branchId,
-          categoryId,
-          categoryName
-        });
-      } catch (err: any) {
-        // Check if the error is about duplicate product name
-        if (err.response?.data?.message?.includes('product with this name already exists')) {
-          console.log('Product name already exists, trying with unique name');
-          
-          // Generate a unique timestamp suffix for the product name
-          const timestamp = new Date().getTime();
-          const uniqueProductName = `${name}_${timestamp.toString().slice(-6)}`;
-          
-          // Update product data with unique name
-          productData.name = uniqueProductName;
-          
-          console.log('Retrying with unique name:', uniqueProductName);
-          
-          // Try again with the unique name
-          const response = await inventoryService.createCustomProduct(productData);
-          
-          // Get product ID from response
-          const productId = response._id;
-          
-          // Get image upload URL
-          const uploadUrlResponse = await inventoryService.getProductImageUploadUrl(branchId, productId);
-          
-          // Navigate to upload image screen
-          navigation.navigate('UploadProductImage', {
-            productId,
-            uploadUrl: uploadUrlResponse.uploadUrl,
-            key: uploadUrlResponse.key,
-            branchId,
-            categoryId,
-            categoryName
-          });
-        } else {
-          // If it's a different error, rethrow it
-          throw err;
-        }
-      }
-      
+      await createCustomProduct(branchId, formData);
+      Alert.alert('Success', 'Product created successfully!', [
+        {
+          text: 'OK',
+          onPress: () =>
+            navigation.navigate('ProductsScreen', {
+              categoryId,
+              categoryName,
+              isDefault: isDefault || false,
+              defaultCategoryId,
+              refresh: true,
+              refreshTimestamp: new Date().getTime(),
+            }),
+        },
+      ]);
     } catch (err: any) {
-      setError(err.message || 'Failed to create product');
-      Alert.alert('Error', err.message || 'Failed to create product');
+      console.error('Failed to create product:', err);
+      setError(err?.response?.data?.message || 'Failed to create product. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-  
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
-      <CustomHeader title={`Create Custom Product`} />
-      
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <CustomHeader title={`New in ${categoryName}`} />
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.formContainer}>
-          <Text style={styles.categoryName}>Category: {categoryName}</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Product Name*</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter product name"
-              placeholderTextColor="#999"
-            />
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Price*</Text>
-            <TextInput
-              style={styles.input}
-              value={price}
-              onChangeText={setPrice}
-              placeholder="Enter price"
-              placeholderTextColor="#999"
-              keyboardType="numeric"
-            />
-          </View>
-          
-
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>{isPacket ? 'Packet Quantity*' : 'Quantity*'}</Text>
-            <TextInput
-              style={styles.input}
-              value={quantity}
-              onChangeText={setQuantity}
-              placeholder={isPacket ? 'Enter packet quantity' : 'Enter quantity'}
-              placeholderTextColor="#999"
-              keyboardType="numeric"
-            />
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Unit*</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={unit}
-                onValueChange={(itemValue) => setUnit(itemValue)}
-                style={styles.picker}
-              >
-                {unitOptions.map((option) => (
-                  <Picker.Item key={option.value} label={option.label} value={option.value} />
-                ))}
-              </Picker>
-            </View>
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Is Packet</Text>
-            <View style={styles.radioGroup}>
-              <TouchableOpacity
-                style={[styles.radioButton, isPacket && styles.radioButtonSelected]}
-                onPress={() => setIsPacket(true)}
-              >
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="Product Name"
+            placeholderTextColor="#999"
+          />
+          <TextInput
+            style={styles.input}
+            value={price}
+            onChangeText={setPrice}
+            placeholder="Price"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+          <View style={styles.packetContainer}>
+            <Text style={styles.packetLabel}>Is this a packaged item?</Text>
+            <View style={styles.radioContainer}>
+              <TouchableOpacity style={styles.radioOption} onPress={() => setIsPacket(true)}>
+                <View style={styles.radioCircle}>
+                  {isPacket && <View style={styles.radioDot} />}
+                </View>
                 <Text style={styles.radioText}>Yes</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.radioButton, !isPacket && styles.radioButtonSelected]}
-                onPress={() => {
-                  setIsPacket(false);
-                  // When switching to non-packet, ensure unit is valid
-                  if (unit !== 'kg' && unit !== 'L') {
-                    setUnit('kg');
-                  }
-                }}
-              >
+              <TouchableOpacity style={styles.radioOption} onPress={() => {
+                setIsPacket(false);
+                if (unit !== 'kg' && unit !== 'L') {
+                  setUnit('kg');
+                }
+              }}>
+                <View style={styles.radioCircle}>
+                  {!isPacket && <View style={styles.radioDot} />}
+                </View>
                 <Text style={styles.radioText}>No</Text>
               </TouchableOpacity>
             </View>
           </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Enter product description (optional)"
-              placeholderTextColor="#999"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
+          <TextInput
+            style={styles.input}
+            value={quantity}
+            onChangeText={setQuantity}
+            placeholder="Quantity"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={unit}
+              onValueChange={(itemValue) => setUnit(itemValue)}
+              style={styles.picker}
+            >
+              {unitOptions.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+              ))}
+            </Picker>
           </View>
+          
+          <TextInput
+            style={[styles.input, styles.descriptionInput]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Description (Optional)"
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={4}
+          />
           
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+            {image && image.uri ? (
+              <Image source={{ uri: image.uri }} style={styles.imagePreview} resizeMode="cover" />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Ionicons name="image-outline" size={40} color="#888" />
+                <Text style={styles.imagePickerText}>Add Product Image</Text>
+              </View>
+            )}
+          </TouchableOpacity>
           
-          <View style={styles.buttonContainer}>
+          {loading ? (
+            <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
+          ) : (
             <CustomButton
-              title="Next"
-              onPress={handleNext}
-              disabled={loading}
+              title="Create Product"
+              onPress={handleSubmit}
+              disabled={!name || !price || !quantity}
             />
-            {loading && <ActivityIndicator style={styles.loader} size="small" color="#007AFF" />}
-          </View>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -312,80 +294,122 @@ const CustomProducts = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F8F9FA',
   },
   scrollView: {
     flex: 1,
   },
+  contentContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
   formContainer: {
-    padding: 16,
-  },
-  categoryName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 16,
-    marginBottom: 8,
-    color: '#333',
+    width: '100%',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
+    width: '100%',
+    height: 50,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  textArea: {
+  descriptionInput: {
     height: 100,
+    textAlignVertical: 'top',
+    paddingTop: 16,
   },
   pickerContainer: {
+    width: '100%',
+    height: 50,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#f9f9f9',
+    borderColor: '#E0E0E0',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   picker: {
-    height: 50,
+    width: '100%',
   },
-  radioGroup: {
+  packetContainer: {
+    width: '100%',
     flexDirection: 'row',
-    justifyContent: 'flex-start',
-  },
-  radioButton: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 10,
-    marginRight: 10,
-    minWidth: 80,
     alignItems: 'center',
+    marginBottom: 20,
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  radioButtonSelected: {
-    backgroundColor: '#007AFF',
+  packetLabel: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  radioContainer: {
+    flexDirection: 'row',
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 16,
+  },
+  radioCircle: {
+    height: 22,
+    width: 22,
+    borderRadius: 11,
+    borderWidth: 2,
     borderColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  radioDot: {
+    height: 12,
+    width: 12,
+    borderRadius: 6,
+    backgroundColor: '#007AFF',
   },
   radioText: {
     fontSize: 16,
     color: '#333',
   },
-  buttonContainer: {
-    marginTop: 24,
-    flexDirection: 'row',
+  imagePicker: {
+    width: '100%',
+    height: 150,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    marginBottom: 24,
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  imagePlaceholder: {
     alignItems: 'center',
   },
-  loader: {
-    marginLeft: 16,
+  imagePickerText: {
+    marginTop: 8,
+    color: '#888',
+    fontSize: 16,
   },
   errorText: {
     color: 'red',
     marginBottom: 16,
+    textAlign: 'center',
   },
 });
 
