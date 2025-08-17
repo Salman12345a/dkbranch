@@ -49,6 +49,7 @@ import BranchAuth from '../features/branch/screens/BranchAuth';
 import UploadBranchDocs from '../features/branch/screens/UploadBranchDocs';
 import StatusScreen from '../features/branch/screens/StatusScreen';
 import SalesSummary from '../features/orders/screens/SalesSummaryScreen';
+import CustomerTransactionsScreen from '../features/khata/screens/CustomerTransactionsScreen';
 
 export type RootStackParamList = {
   SplashScreen: undefined;
@@ -134,6 +135,24 @@ export type RootStackParamList = {
   CustomProducts: { categoryId: string; categoryName: string; isCustom: boolean };
   UploadProductImage: { productId: string; uploadUrl: string; key: string; branchId: string };
   EditProductDetails: { productId: string; categoryId: string; isCustom: boolean; isDefault: boolean };
+  CustomerTransactions: {
+    customerId: string;
+    customerName: string;
+    customerPhone: string;
+    currentDue: number;
+    transactions: {
+      transactionId: string;
+      amount: number;
+      type: 'payment' | 'order';
+      paidBy: string;
+      refId: string;
+      timestamp: string;
+      note?: string;
+      displayText: string;
+      formattedDate: string;
+      formattedTime: string;
+    }[];
+  };
 };
 
 interface Order {
@@ -237,7 +256,7 @@ const AppNavigator: React.FC = () => (
     <Stack.Screen name="Authentication" component={AuthenticationScreen} />
     <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
     <Stack.Screen name="PhoneNumberScreen" component={PhoneNumberScreen} />
-    <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
+    <Stack.Screen name="OTPVerification" component={OTPVerificationScreen as React.ComponentType<any>} />
     <Stack.Screen
       name="RegisteredBranchDetails"
       component={RegisteredBranchDetails}
@@ -318,6 +337,7 @@ const AppNavigator: React.FC = () => (
       component={AssignDeliveryPartner as React.ComponentType<any>}
     />
     <Stack.Screen name="SalesSummary" component={SalesSummary} />
+    <Stack.Screen name="CustomerTransactions" component={CustomerTransactionsScreen} options={{ headerShown: false }} />
 
     {/* Branch screens */}
     <Stack.Screen name="BranchAuth" component={BranchAuth} />

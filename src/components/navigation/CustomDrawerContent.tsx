@@ -192,6 +192,8 @@ const getIconName = (routeName: string): string => {
       return 'description';
     case 'Help':
       return 'help';
+    case 'Khata':
+      return 'book';
     default:
       return 'circle';
   }

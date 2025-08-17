@@ -10,6 +10,7 @@ import PrivacyPolicyScreen from '../features/common/screens/PrivacyPolicyScreen'
 import TermsConditionsScreen from '../features/common/screens/TermsConditionsScreen';
 import DeliveryService from '../features/delivery/screens/DeliveryService';
 import DisabledProductsScreen from '../features/inventory/screens/DisabledProductsScreen';
+import KhataScreen from '../features/khata/screens/KhataScreen';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomDrawerContent from '../components/navigation/CustomDrawerContent';
 
@@ -21,6 +22,7 @@ export type DrawerParamList = {
   OrderHistory: undefined;
   DeliveryService: undefined;
   DisabledProducts: undefined;
+  Khata: undefined;
   PrivacyPolicy: undefined;
   TermsConditions: undefined;
   Authentication: undefined;
@@ -80,6 +82,17 @@ const Sidebar: React.FC = () => {
           title: 'Store Management',
           drawerIcon: ({color}) => (
             <Icon name="store" size={24} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Khata"
+        component={KhataScreen}
+        options={{
+          headerShown: false,
+          title: 'Khata',
+          drawerIcon: ({color}) => (
+            <Icon name="book" size={24} color={color} />
           ),
         }}
       />

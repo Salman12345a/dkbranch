@@ -6,6 +6,6 @@ export const config = {
  
 };
 
-//https://dokirana-85740.el.r.appspot.com/
+//https://dokirana-85740.el.r.appspot.com./
 //http://10.0.2.2:3000/
 

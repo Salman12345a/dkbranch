@@ -24,6 +24,11 @@ interface ExtendedOrder extends Order {
   deliveryEnabled?: boolean;
   deliveryServiceAvailable?: boolean;
   manuallyCollected?: boolean;
+  payLater?: {
+    requested: boolean;
+    status: 'pending' | 'approved' | 'rejected';
+    partialPaid: number;
+  };
 }
 
 // Helper function to calculate platform charges based on order value
@@ -36,6 +41,8 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const {order: initialOrder} = route.params;
   const {updateOrder, addWalletTransaction} = useStore();
   const [orderState, setOrderState] = useState(initialOrder as ExtendedOrder);
+  const [payLaterLoading, setPayLaterLoading] = useState(false);
+  const [payLaterStatus, setPayLaterStatus] = useState<'approved' | 'rejected' | null>(null);
 
   // Fetch latest order data on mount to ensure item details are present
   useEffect(() => {
@@ -74,6 +81,47 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       isPickupOrder,
     };
   }, [orderState.totalPrice, orderState.deliveryEnabled]);
+
+  // Handle PayLater approval/rejection
+  const handlePayLaterDecision = async (decision: 'APPROVE' | 'REJECT') => {
+    setPayLaterLoading(true);
+    try {
+      const response = await api.post('/pay-later/decision', {
+        orderId: orderState._id,
+        decision: decision
+      });
+      
+      if (response.data.success) {
+        const newStatus: 'approved' | 'rejected' = decision === 'APPROVE' ? 'approved' : 'rejected';
+        setPayLaterStatus(newStatus);
+        
+        // Update order state
+        const updatedOrder = {
+          ...orderState,
+          payLater: {
+            requested: orderState.payLater?.requested ?? false,
+            partialPaid: orderState.payLater?.partialPaid ?? 0,
+            status: newStatus
+          }
+        };
+        setOrderState(updatedOrder);
+        updateOrder(orderState._id, updatedOrder);
+        
+        Alert.alert(
+          'Success',
+          `PayLater request has been ${decision === 'APPROVE' ? 'approved' : 'rejected'} successfully.`
+        );
+      }
+    } catch (error) {
+      console.error('PayLater decision error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to process PayLater request. Please try again.'
+      );
+    } finally {
+      setPayLaterLoading(false);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -174,6 +222,55 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
           Informed Customer! To visit the Branch to collect their items.
         </Text>
       </View>
+
+      {/* PayLater Section */}
+      {orderState.payLater?.requested && (
+        <View style={styles.payLaterCard}>
+          <Text style={styles.payLaterTitle}>PayLater Request</Text>
+          
+          {payLaterStatus || orderState.payLater?.status === 'approved' ? (
+            <View style={styles.payLaterApproved}>
+              <Icon name="check-circle" size={24} color="#2ecc71" />
+              <Text style={styles.payLaterApprovedText}>
+                PayLater Request is Approved
+              </Text>
+            </View>
+          ) : payLaterStatus === 'rejected' || orderState.payLater?.status === 'rejected' ? (
+            <View style={styles.payLaterRejected}>
+              <Icon name="cancel" size={24} color="#e74c3c" />
+              <Text style={styles.payLaterRejectedText}>
+                PayLater Request is Rejected
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.payLaterButtons}>
+              <TouchableOpacity
+                style={[styles.payLaterButton, styles.approveButton]}
+                onPress={() => handlePayLaterDecision('APPROVE')}
+                disabled={payLaterLoading}
+              >
+                {payLaterLoading ? (
+                  <Text style={styles.payLaterButtonText}>Processing...</Text>
+                ) : (
+                  <>
+                    <Icon name="check" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                    <Text style={styles.payLaterButtonText}>Approve PayLater</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.payLaterButton, styles.rejectButton]}
+                onPress={() => handlePayLaterDecision('REJECT')}
+                disabled={payLaterLoading}
+              >
+                <Icon name="close" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                <Text style={styles.payLaterButtonText}>Reject PayLater</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Completed button - only show when manuallyCollected is true */}
       {orderState.manuallyCollected && (
@@ -385,6 +482,76 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: 8,
+  },
+  payLaterCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  payLaterTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#34495e',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  payLaterButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  payLaterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 15,
+    borderRadius: 8,
+  },
+  approveButton: {
+    backgroundColor: '#2ecc71',
+  },
+  rejectButton: {
+    backgroundColor: '#e74c3c',
+  },
+  payLaterButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  payLaterApproved: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#d5f4e6',
+    borderRadius: 8,
+  },
+  payLaterApprovedText: {
+    color: '#2ecc71',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  payLaterRejected: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#fdeaea',
+    borderRadius: 8,
+  },
+  payLaterRejectedText: {
+    color: '#e74c3c',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });
 
