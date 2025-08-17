@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
@@ -24,6 +25,13 @@ interface ExtendedOrder extends Order {
   deliveryEnabled?: boolean;
   deliveryServiceAvailable?: boolean;
   manuallyCollected?: boolean;
+  customerName?: string;
+  customerPhone?: string;
+  totalPrice?: number;
+  customer?: {
+    name?: string;
+    phone?: string;
+  };
   payLater?: {
     requested: boolean;
     status: 'pending' | 'approved' | 'rejected';
@@ -53,6 +61,9 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
           'Fetched Order Data:',
           JSON.stringify(response.data, null, 2),
         );
+        console.log('Customer Name:', response.data.customerName);
+        console.log('Customer Phone:', response.data.customerPhone);
+        console.log('Customer Info:', response.data.customer);
         setOrderState(response.data as ExtendedOrder);
         updateOrder(initialOrder._id, response.data);
       } catch (error) {
@@ -81,6 +92,14 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       isPickupOrder,
     };
   }, [orderState.totalPrice, orderState.deliveryEnabled]);
+
+  // Handle phone call
+  const handlePhoneCall = () => {
+    const phoneNumber = orderState.customerPhone || orderState.customer?.phone;
+    if (phoneNumber) {
+      Linking.openURL(`tel:${phoneNumber}`);
+    }
+  };
 
   // Handle PayLater approval/rejection
   const handlePayLaterDecision = async (decision: 'APPROVE' | 'REJECT') => {
@@ -130,6 +149,36 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
         <Text style={styles.title}>Order Ready for Pickup</Text>
         <Text style={styles.orderId}>#{orderState.orderId}</Text>
       </View>
+
+      {/* Customer Information */}
+      {(orderState.customerName || orderState.customerPhone || orderState.customer?.name || orderState.customer?.phone) && (
+        <View style={styles.customerCard}>
+          
+          <View style={styles.customerDetails}>
+            {(orderState.customerName || orderState.customer?.name) && (
+              <View style={styles.customerRow}>
+                <Icon name="account-circle" size={20} color="#7f8c8d" />
+                <Text style={styles.customerName}>
+                  {orderState.customerName || orderState.customer?.name}
+                </Text>
+              </View>
+            )}
+            {(orderState.customerPhone || orderState.customer?.phone) && (
+              <TouchableOpacity 
+                style={styles.customerRow} 
+                onPress={handlePhoneCall}
+                activeOpacity={0.7}
+              >
+                <Icon name="phone" size={20} color="#2ecc71" />
+                <Text style={styles.customerPhone}>
+                  {orderState.customerPhone || orderState.customer?.phone}
+                </Text>
+                <Icon name="call" size={16} color="#2ecc71" style={styles.callIcon} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Order Items</Text>
@@ -551,6 +600,55 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     fontSize: 16,
     fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  customerCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  customerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ecf0f1',
+  },
+  customerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#34495e',
+    marginLeft: 10,
+  },
+  customerDetails: {
+    gap: 12,
+  },
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  customerName: {
+    fontSize: 16,
+    color: '#2c3e50',
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  customerPhone: {
+    fontSize: 16,
+    color: '#2ecc71',
+    marginLeft: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
+  callIcon: {
     marginLeft: 8,
   },
 });
