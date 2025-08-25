@@ -14,6 +14,7 @@ import {RootStackParamList} from '../../../navigation/AppNavigator';
 import {useStore, Order} from '../../../store/ordersStore';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../../services/api';
+import NativeBannerAd from '../../../components/admob/NativeBannerAd';
 
 type OrderHasPackedProps = StackScreenProps<
   RootStackParamList,
@@ -37,13 +38,11 @@ interface ExtendedOrder extends Order {
     status: 'pending' | 'approved' | 'rejected';
     partialPaid: number;
   };
+  modificationHistory?: Array<{
+    changes?: string[];
+  }>;
 }
 
-// Helper function to calculate platform charges based on order value
-const calculatePlatformCharge = (orderValue: number): number => {
-  // ₹1 for every ₹1000 of order value, rounded up
-  return Math.ceil(orderValue / 1000);
-};
 
 const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const {order: initialOrder} = route.params;
@@ -73,20 +72,15 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
     fetchOrderDetails();
   }, [initialOrder._id, updateOrder]);
 
-  // Calculate platform charges and final amounts
+  // Calculate order totals without any platform charges
   const orderCalculations = useMemo(() => {
     const orderTotal = orderState.totalPrice || 0;
-    // Check if it's a pickup order (deliveryEnabled is false)
-    // For non-pickup orders (delivery enabled), no platform charges
     const isPickupOrder = orderState.deliveryEnabled === false;
-    const customerPlatformCharge = isPickupOrder
-      ? calculatePlatformCharge(orderTotal)
-      : 0;
 
     return {
       orderTotal,
-      customerPlatformCharge,
-      finalCustomerTotal: orderTotal + customerPlatformCharge,
+      customerPlatformCharge: 0, // No platform charges
+      finalCustomerTotal: orderTotal, // Customer pays only order total
       branchPlatformCharge: 0, // No platform charge for the branch
       branchReceives: orderTotal, // Branch receives the full amount
       isPickupOrder,
@@ -216,45 +210,19 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       </View>
 
       <View style={styles.summaryCard}>
-        {orderCalculations.isPickupOrder ? (
-          <>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Order Total</Text>
-              <Text style={styles.summaryValue}>
-                ₹{orderCalculations.orderTotal.toFixed(2)}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Customer Platform Fee</Text>
-              <Text style={styles.summaryValue}>
-                +₹{orderCalculations.customerPlatformCharge.toFixed(2)}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabelBold}>Customer Pays</Text>
-              <Text style={styles.finalTotal}>
-                ₹{orderCalculations.finalCustomerTotal.toFixed(2)}
-              </Text>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabelBold}>Branch Receives</Text>
-              <Text style={styles.branchTotal}>
-                ₹{orderCalculations.branchReceives.toFixed(2)}
-              </Text>
-            </View>
-          </>
-        ) : (
-          <Text style={styles.total}>Total: ₹{orderState.totalPrice || 0}</Text>
-        )}
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabelBold}>Total Amount</Text>
+          <Text style={styles.finalTotal}>
+            ₹{orderCalculations.orderTotal.toFixed(2)}
+          </Text>
+        </View>
 
         {orderState.modificationHistory &&
           orderState.modificationHistory.length > 0 && (
             <View style={styles.changes}>
               <Text style={styles.changesTitle}>Modification History:</Text>
               {orderState.modificationHistory[0]?.changes?.map(
-                (change, index) => (
+                (change: string, index: number) => (
                   <View key={index} style={styles.changeItem}>
                     <Icon name="edit" size={14} color="#95a5a6" />
                     <Text style={styles.changeText}>{change}</Text>
@@ -264,6 +232,9 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
             </View>
           )}
       </View>
+
+      {/* Native Banner Ad */}
+      <NativeBannerAd style={styles.adContainer} />
 
       <View style={styles.notice}>
         <Icon name="info" size={24} color="#3498db" />
@@ -650,6 +621,10 @@ const styles = StyleSheet.create({
   },
   callIcon: {
     marginLeft: 8,
+  },
+  adContainer: {
+    marginHorizontal: 0,
+    marginVertical: 12,
   },
 });
 

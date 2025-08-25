@@ -1,4 +1,8 @@
 {
   "name": "dkbranch",
-  "displayName": "dkbranch"
+  "displayName": "dkbranch",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-2620094529158311~7792397866",
+    "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
+  }
 }

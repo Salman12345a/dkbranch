@@ -1,12 +1,12 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {View, StyleSheet, Text, Alert} from 'react-native';
+import {View, StyleSheet, Alert, Text} from 'react-native';
 import SwitchSelector from 'react-native-switch-selector';
 import {useStore} from '../../store/ordersStore';
 import {getStoreStatus, updateStoreStatus} from '../../services/api';
 import socketService from '../../services/socket';
 import {OrderSocket} from '../../native/OrderSocket'; // Import OrderSocket
+import {useAdMob} from '../../hooks/useAdMob';
 
-const MINIMUM_BALANCE = -100;
 
 interface StoreStatusToggleProps {
   setShowLowBalanceModal: (show: boolean) => void;
@@ -15,11 +15,24 @@ interface StoreStatusToggleProps {
 const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
   setShowLowBalanceModal,
 }) => {
-  const {storeStatus, setStoreStatus, walletBalance} = useStore();
-  const [isDisabled, setIsDisabled] = useState(false);
+  const {storeStatus, setStoreStatus} = useStore();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isToggling = useRef(false);
   const switchRef = useRef<any>(null);
+  
+  // AdMob integration with safe error handling
+  let showRewardedAd: any = null;
+  let isRewardedAdReady = false;
+  let isShowingAd = false;
+  
+  try {
+    const adMobHook = useAdMob();
+    showRewardedAd = adMobHook.showRewardedAd;
+    isRewardedAdReady = adMobHook.isRewardedAdReady;
+    isShowingAd = adMobHook.isShowingAd;
+  } catch (error) {
+    console.warn('[StoreStatusToggle] AdMob hook failed, continuing without ads:', error);
+  }
 
   // Fetch initial storeStatus from server
   useEffect(() => {
@@ -29,14 +42,7 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
         setStoreStatus(response.storeStatus);
         OrderSocket.setStoreStatus(response.storeStatus === 'open'); // Sync with native module
 
-        // Check wallet balance
-        if (response.balance < MINIMUM_BALANCE) {
-          setIsDisabled(true);
-          setErrorMessage('Store cannot be opened: Balance below -₹100');
-        } else {
-          setIsDisabled(false);
-          setErrorMessage(null);
-        }
+        setErrorMessage(null);
       } catch (error) {
         console.error('Error fetching storeStatus:', error);
         setErrorMessage('Failed to fetch store status');
@@ -52,7 +58,7 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
     if (!socket) return;
 
     const handleStatusUpdate = (data: {
-      storeStatus: string;
+      storeStatus: 'open' | 'closed';
       balance?: number;
     }) => {
       if (isToggling.current) return;
@@ -65,12 +71,6 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
           switchRef.current.setValue(data.storeStatus === 'open' ? 0 : 1);
         }
       }
-
-      // Handle balance updates
-      if (data.balance !== undefined && data.balance < MINIMUM_BALANCE) {
-        setIsDisabled(true);
-        setErrorMessage('Store cannot be opened: Balance below -₹100');
-      }
     };
 
     socket.on('syncmart:status', handleStatusUpdate);
@@ -79,42 +79,38 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
     };
   }, [storeStatus, setStoreStatus]);
 
-  // Watch wallet balance changes
-  useEffect(() => {
-    if (walletBalance < MINIMUM_BALANCE) {
-      setIsDisabled(true);
-      setErrorMessage('Store cannot be opened: Balance below -₹100');
-
-      // Auto-close store if it's open
-      if (storeStatus === 'open') {
-        toggleSyncMartStatus(1);
-      }
-    } else {
-      setIsDisabled(false);
-      setErrorMessage(null);
-    }
-  }, [walletBalance, storeStatus]);
 
   const toggleSyncMartStatus = useCallback(
     async (value: number) => {
       const newStatus = value === 0 ? ('open' as const) : ('closed' as const);
       if (newStatus === storeStatus) return;
 
-      // Prevent opening store with low balance
-      if (newStatus === 'open' && walletBalance < MINIMUM_BALANCE) {
-        Alert.alert(
-          'Cannot Open Store',
-          'Your wallet balance is below -₹100. Please add funds to open the store.',
-        );
-        // Revert switch position
-        if (switchRef.current) {
-          switchRef.current.setValue(1);
-        }
-        return;
-      }
-
       isToggling.current = true;
+
       try {
+        // Try to show rewarded ad if available
+        if (showRewardedAd && isRewardedAdReady) {
+          try {
+            console.log('Attempting to show rewarded ad...');
+            const adWatched = await showRewardedAd({
+              onComplete: (success: boolean, reward: any) => {
+                console.log('Ad completed:', success, reward);
+              },
+              onError: (error: any) => {
+                console.warn('Ad error:', error);
+              },
+              timeout: 15000,
+            });
+            console.log('Ad result:', adWatched);
+          } catch (adError: any) {
+            console.error('Ad failed, but continuing with status change:', adError);
+          }
+        } else {
+          console.log('No ad available or not ready, proceeding with status change');
+        }
+
+        // Proceed with status change
+        console.log('Updating store status to:', newStatus);
         const response = await updateStoreStatus(newStatus);
         setStoreStatus(response.storeStatus);
         OrderSocket.setStoreStatus(response.storeStatus === 'open'); // Sync with native module
@@ -124,6 +120,8 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
         } else {
           setErrorMessage(null);
         }
+
+        console.log('Status changed successfully');
       } catch (err: any) {
         console.error('Toggle Error:', err);
         Alert.alert('Error', err.message || 'Failed to update store status');
@@ -137,19 +135,14 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
         }, 1500);
       }
     },
-    [storeStatus, setStoreStatus, walletBalance],
+    [storeStatus, setStoreStatus],
   );
 
   const handleTogglePress = useCallback(
     (value: number) => {
-      if (isDisabled) {
-        // Show low balance modal when disabled toggle is tapped
-        setShowLowBalanceModal(true);
-        return;
-      }
       toggleSyncMartStatus(value);
     },
-    [isDisabled, toggleSyncMartStatus, setShowLowBalanceModal],
+    [toggleSyncMartStatus],
   );
 
   return (
@@ -164,12 +157,15 @@ const StoreStatusToggle: React.FC<StoreStatusToggleProps> = ({
         value={storeStatus === 'open' ? 0 : 1}
         onPress={handleTogglePress}
         buttonColor="#FFFFFF"
-        backgroundColor={isDisabled ? '#E0E0E0' : 'rgba(255, 255, 255, 0.3)'}
-        borderColor={isDisabled ? '#CCCCCC' : '#007AFF'}
-        selectedColor={isDisabled ? '#999999' : '#007AFF'}
+        backgroundColor={isShowingAd ? '#E0E0E0' : 'rgba(255, 255, 255, 0.3)'}
+        borderColor={isShowingAd ? '#CCCCCC' : '#007AFF'}
+        selectedColor={isShowingAd ? '#999999' : '#007AFF'}
         style={styles.switch}
-        disabled={false} // Remove disabled prop to allow tap events
+        disabled={isShowingAd}
       />
+      {isShowingAd && (
+        <Text style={styles.adStatusText}>Watching ad...</Text>
+      )}
     </View>
   );
 };
@@ -188,6 +184,13 @@ const styles = StyleSheet.create({
     marginTop: 5,
     textAlign: 'center',
     maxWidth: 200,
+  },
+  adStatusText: {
+    fontSize: 12,
+    color: '#007AFF',
+    marginTop: 5,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 

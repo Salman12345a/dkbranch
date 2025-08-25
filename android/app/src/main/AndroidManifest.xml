@@ -23,6 +23,19 @@
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       android:supportsRtl="true">
+      
+      <!-- AdMob App ID (Production ID) -->
+      <meta-data
+          android:name="com.google.android.gms.ads.APPLICATION_ID"
+          android:value="ca-app-pub-2620094529158311~7792397866"/>
+      
+      <!-- AdMob Configuration -->
+      <meta-data
+          android:name="com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION"
+          android:value="true"/>
+      <meta-data
+          android:name="com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING"
+          android:value="true"/>
       <service
         android:name=".socket.service.OrderSocketService"
         android:enabled="true"

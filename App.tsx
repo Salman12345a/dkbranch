@@ -17,6 +17,7 @@ import {config} from './src/config';
 import FCMService from './src/services/FCMService';
 import messaging from '@react-native-firebase/messaging';
 import NotificationPermission from './src/components/common/NotificationPermission';
+import {AdMobProvider} from './src/contexts/AdMobContext';
 
 export const navigationRef = React.createRef<NavigationContainerRef<any>>();
 
@@ -216,13 +217,15 @@ const App = () => {
   }, [userId]);
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <AppNavigator />
-      {/* Add NetworkAlert component for internet connectivity monitoring */}
-      <NetworkAlert />
-      {/* Add NotificationPermission component to handle permission requests */}
-      <NotificationPermission />
-    </NavigationContainer>
+    <AdMobProvider>
+      <NavigationContainer ref={navigationRef}>
+        <AppNavigator />
+        {/* Add NetworkAlert component for internet connectivity monitoring */}
+        <NetworkAlert />
+        {/* Add NotificationPermission component to handle permission requests */}
+        <NotificationPermission />
+      </NavigationContainer>
+    </AdMobProvider>
   );
 };
 

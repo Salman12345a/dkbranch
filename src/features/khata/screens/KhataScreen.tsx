@@ -79,6 +79,11 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
     }
   }, [activeTab]);
 
+  // Initial load - fetch data for the default active tab
+  useEffect(() => {
+    fetchCustomerDues(); // Load khata data initially since it's the default tab
+  }, []);
+
   const fetchCustomerDues = async () => {
     setLoading(true);
     try {
@@ -108,9 +113,16 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
       
       if (response.data && response.data.customers) {
         setApprovedCustomers(response.data.customers);
+      } else if (response.data && Array.isArray(response.data)) {
+        // Handle case where response.data is directly an array
+        setApprovedCustomers(response.data);
+      } else {
+        // Handle empty response
+        setApprovedCustomers([]);
       }
     } catch (error) {
       console.error('Error fetching approved customers:', error);
+      setApprovedCustomers([]); // Set empty array on error
       Alert.alert('Error', 'Failed to fetch approved customers. Please try again.');
     } finally {
       setApprovedLoading(false);
@@ -353,17 +365,25 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
           ListEmptyComponent={!loading ? renderEmptyState : null}
         />
       ) : (
-        <FlatList
-          data={approvedCustomers}
-          renderItem={renderApprovedCustomerItem}
-          keyExtractor={item => item.customerId}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={!approvedLoading ? renderEmptyState : null}
-        />
+        <>
+          {approvedLoading && approvedCustomers.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading approved customers...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={approvedCustomers}
+              renderItem={renderApprovedCustomerItem}
+              keyExtractor={item => item.customerId}
+              contentContainerStyle={styles.listContainer}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+              ListEmptyComponent={!approvedLoading ? renderEmptyState : null}
+            />
+          )}
+        </>
       )}
       
       {/* Approve Customer Button - Only show in Approved tab */}
@@ -694,6 +714,17 @@ const styles = StyleSheet.create({
     color: '#95a5a6',
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    textAlign: 'center',
   },
 });
 

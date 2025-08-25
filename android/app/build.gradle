@@ -85,8 +85,8 @@ android {
         applicationId "com.dkbranch"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "2.2.5"
+        versionCode 6
+        versionName "2.3.5"
         vectorDrawables.useSupportLibrary = true
     }
     signingConfigs {
@@ -145,6 +145,9 @@ dependencies {
 
     // AndroidX Security for EncryptedSharedPreferences
     implementation("androidx.security:security-crypto:1.0.0")
+
+    // Google Mobile Ads SDK
+    implementation 'com.google.android.gms:play-services-ads:22.6.0'
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

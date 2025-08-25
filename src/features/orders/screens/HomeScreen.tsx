@@ -14,6 +14,8 @@ import {
   Easing,
 } from 'react-native';
 import {storage} from '../../../utils/storage';
+import {useAdMobContext} from '../../../contexts/AdMobContext';
+import AdLoadingOverlay from '../../../components/admob/AdLoadingOverlay';
 import Header from '../../../components/dashboard/Header';
 import OrderCard from '../../../components/order/OrderCard';
 import LowBalanceModal from '../../../components/common/LowBalanceModal';
@@ -80,10 +82,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLowBalanceModal, setShowLowBalanceModal] = useState(false);
 
+  // AdMob context
+  const { state: adMobState } = useAdMobContext();
   
   // Animation prep overlay state
   const [showPrepOverlay, setShowPrepOverlay] = useState(true);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const adLoadingFadeAnim = useRef(new Animated.Value(0)).current;
   const lottieRef = useRef<LottieView>(null);
   const appState = useRef(AppState.currentState);
 
@@ -1046,6 +1051,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
     }
   }, [storeStatus, appState, filteredOrders.length]);
 
+  // Handle AdMob loading overlay
+  useEffect(() => {
+    if (adMobState.isLoadingAd) {
+      // Show ad loading overlay
+      Animated.timing(adLoadingFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Hide ad loading overlay
+      Animated.timing(adLoadingFadeAnim, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [adMobState.isLoadingAd, adLoadingFadeAnim]);
+
   // Show only authentication loading internally, but keep the prep overlay visible
   // This allows components to load in the background while animation is showing
 
@@ -1069,6 +1095,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
           </View>
         </Animated.View>
       )}
+      
+      {/* AdMob loading overlay */}
+      <AdLoadingOverlay 
+        visible={adMobState.isLoadingAd} 
+        opacity={adLoadingFadeAnim} 
+      />
       
       <Header
         navigation={navigation}

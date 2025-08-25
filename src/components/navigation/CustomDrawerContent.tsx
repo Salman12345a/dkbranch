@@ -68,7 +68,11 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
 
   // Customize which screens should be shown in the drawer
   const filteredRoutes = props.state.routes.filter(route => {
-    // Show all screens
+    // Temporarily disable wallet option
+    if (route.name === 'Wallet') {
+      return false;
+    }
+    // Show all other screens
     return true;
   });
 
@@ -169,7 +173,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           </View>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-        <Text style={styles.versionText}>Version 2.2.5</Text>
+        <Text style={styles.versionText}>Version 2.3.5</Text>
       </View>
     </SafeAreaView>
   );
