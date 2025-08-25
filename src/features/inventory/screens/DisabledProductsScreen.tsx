@@ -8,6 +8,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../../services/api';
 import { storage } from '../../../utils/storage';
 import { Product as BaseProduct } from '../../../services/inventoryService';
+import StickyBannerAd from '../../../components/admob/StickyBannerAd';
 
 // Extended product interface for disabled products
 interface Product extends BaseProduct {
@@ -217,50 +218,59 @@ const DisabledProductsScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <CustomHeader 
-        title="Disabled Products" 
-        onBackPress={() => navigation.goBack()} 
-      />
-      
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading disabled products...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.centerContainer}>
-          <Icon name="error-outline" size={50} color="#dc3545" />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={fetchDisabledProducts}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : disabledProducts.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <Icon name="check-circle" size={70} color="#28a745" />
-          <Text style={styles.emptyText}>No disabled products found!</Text>
-          <Text style={styles.emptySubText}>All your products are currently enabled.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={disabledProducts}
-          renderItem={renderProductItem}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          onRefresh={handleRefresh}
-          refreshing={loading}
+    <View style={styles.wrapper}>
+      <View style={styles.container}>
+        <CustomHeader 
+          title="Disabled Products" 
+          onBackPress={() => navigation.goBack()} 
         />
-      )}
+        
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Loading disabled products...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.centerContainer}>
+            <Icon name="error-outline" size={50} color="#dc3545" />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={fetchDisabledProducts}
+            >
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : disabledProducts.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <Icon name="check-circle" size={70} color="#28a745" />
+            <Text style={styles.emptyText}>No disabled products found!</Text>
+            <Text style={styles.emptySubText}>All your products are currently enabled.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={disabledProducts}
+            renderItem={renderProductItem}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={[styles.listContainer, styles.listWithAd]}
+            showsVerticalScrollIndicator={false}
+            onRefresh={handleRefresh}
+            refreshing={loading}
+          />
+        )}
+      </View>
+      
+      {/* Sticky Banner Ad */}
+      <StickyBannerAd />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -308,6 +318,9 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 10,
+  },
+  listWithAd: {
+    paddingBottom: 80, // Add space for sticky banner ad
   },
   productCard: {
     backgroundColor: '#fff',

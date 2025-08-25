@@ -28,6 +28,8 @@ export interface Order {
   items: any[];
   status: string;
   createdAt: string;
+  deliveryEnabled?: boolean;
+  totalPrice?: number;
   // Add other order properties as needed
 }
 

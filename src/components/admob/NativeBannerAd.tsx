@@ -10,44 +10,29 @@ interface NativeBannerAdProps {
 const NativeBannerAd: React.FC<NativeBannerAdProps> = ({ style }) => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usingFallback, setUsingFallback] = useState(false);
 
   const handleAdLoaded = () => {
-    console.log(`${usingFallback ? 'Fallback banner' : 'Native'} ad loaded successfully`);
+    console.log('Native ad loaded successfully');
     setLoaded(true);
     setError(null);
   };
 
   const handleAdFailedToLoad = (error: any) => {
-    // Only log unexpected errors, suppress expected no-fill errors
-    if (error.code !== 'googleMobileAds/error-code-no-fill') {
-      console.error(`${usingFallback ? 'Fallback banner' : 'Native'} ad failed to load:`, error);
-    }
-    
-    if (!usingFallback && error.code === 'googleMobileAds/error-code-no-fill') {
-      // Silently switch to fallback without logging error
-      setUsingFallback(true);
-      setError(null);
-      return;
-    }
-    
+    // Silently handle all ad load failures - show nothing if native ad fails
     setError(error.message || 'Failed to load ad');
     setLoaded(false);
   };
 
   if (error) {
-    return null; // Don't show anything if both ads fail to load
+    return null; // Don't show anything if native ad fails to load
   }
 
-  // Use test banner ad as fallback since production banner ad unit isn't provided yet
-  const adUnitId = usingFallback 
-    ? 'ca-app-pub-3940256099942544/6300978111' // Test banner ad unit as fallback
-    : ADMOB_CONFIG.nativeAdUnitId;
+  // Only use production native ad unit - no fallback
+  const adUnitId = ADMOB_CONFIG.nativeAdUnitId;
 
   return (
     <View style={[styles.container, style]}>
       <BannerAd
-        key={usingFallback ? 'fallback' : 'native'} // Force re-render when switching
         unitId={adUnitId}
         size={BannerAdSize.MEDIUM_RECTANGLE}
         requestOptions={{

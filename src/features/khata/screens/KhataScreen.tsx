@@ -22,6 +22,7 @@ import {CompositeNavigationProp} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import api from '../../../services/api';
 import {storage} from '../../../utils/storage';
+import StickyBannerAd from '../../../components/admob/StickyBannerAd';
 
 type KhataScreenProps = DrawerScreenProps<DrawerParamList, 'Khata'> & {
   navigation: CompositeNavigationProp<
@@ -311,93 +312,98 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
-        <View style={styles.tabButtons}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'khata' && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab('khata')}
-          >
-            <Text
+    <View style={styles.wrapper}>
+      <SafeAreaView style={styles.container}>
+        {/* Tab Navigation */}
+        <View style={styles.tabContainer}>
+          <View style={styles.tabButtons}>
+            <TouchableOpacity
               style={[
-                styles.tabButtonText,
-                activeTab === 'khata' && styles.activeTabButtonText,
+                styles.tabButton,
+                activeTab === 'khata' && styles.activeTabButton,
               ]}
+              onPress={() => setActiveTab('khata')}
             >
-              Khata
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'approved' && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab('approved')}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  activeTab === 'khata' && styles.activeTabButtonText,
+                ]}
+              >
+                Khata
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
               style={[
-                styles.tabButtonText,
-                activeTab === 'approved' && styles.activeTabButtonText,
+                styles.tabButton,
+                activeTab === 'approved' && styles.activeTabButton,
               ]}
+              onPress={() => setActiveTab('approved')}
             >
-              Approved Customers
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  activeTab === 'approved' && styles.activeTabButtonText,
+                ]}
+              >
+                Approved Customers
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {/* Tab Content */}
-      {activeTab === 'khata' ? (
-        <FlatList
-          data={customers}
-          renderItem={renderCustomerItem}
-          keyExtractor={item => item.customerId}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={!loading ? renderEmptyState : null}
-        />
-      ) : (
-        <>
-          {approvedLoading && approvedCustomers.length === 0 ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading approved customers...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={approvedCustomers}
-              renderItem={renderApprovedCustomerItem}
-              keyExtractor={item => item.customerId}
-              contentContainerStyle={styles.listContainer}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-              }
-              ListEmptyComponent={!approvedLoading ? renderEmptyState : null}
-            />
-          )}
-        </>
-      )}
+        {/* Tab Content */}
+        {activeTab === 'khata' ? (
+          <FlatList
+            data={customers}
+            renderItem={renderCustomerItem}
+            keyExtractor={item => item.customerId}
+            contentContainerStyle={[styles.listContainer, styles.listWithAd]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={!loading ? renderEmptyState : null}
+          />
+        ) : (
+          <>
+            {approvedLoading && approvedCustomers.length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading approved customers...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={approvedCustomers}
+                renderItem={renderApprovedCustomerItem}
+                keyExtractor={item => item.customerId}
+                contentContainerStyle={[styles.listContainer, styles.listWithAd]}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+                ListEmptyComponent={!approvedLoading ? renderEmptyState : null}
+              />
+            )}
+          </>
+        )}
+        
+        {/* Approve Customer Button - Only show in Approved tab */}
+        {activeTab === 'approved' && (
+          <View style={styles.approveButtonContainer}>
+            <TouchableOpacity
+              style={styles.approveButton}
+              onPress={() => setShowApproveModal(true)}
+            >
+              <Icon name="person-add" size={20} color="#fff" />
+              <Text style={styles.approveButtonText}>Approve Customer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </SafeAreaView>
       
-      {/* Approve Customer Button - Only show in Approved tab */}
-      {activeTab === 'approved' && (
-        <View style={styles.approveButtonContainer}>
-          <TouchableOpacity
-            style={styles.approveButton}
-            onPress={() => setShowApproveModal(true)}
-          >
-            <Icon name="person-add" size={20} color="#fff" />
-            <Text style={styles.approveButtonText}>Approve Customer</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Sticky Banner Ad */}
+      <StickyBannerAd />
       
       {/* Approve Customer Modal */}
       <Modal
@@ -463,14 +469,21 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
           </KeyboardAvoidingView>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  listWithAd: {
+    paddingBottom: 80, // Add space for sticky banner ad
   },
   tabContainer: {
     paddingHorizontal: 20,
@@ -596,6 +609,7 @@ const styles = StyleSheet.create({
   },
   approveButtonContainer: {
     padding: 20,
+    paddingBottom: 100, // Add space for sticky banner ad
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',

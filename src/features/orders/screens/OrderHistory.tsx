@@ -11,6 +11,7 @@ import {useStore} from '../../../store/ordersStore';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import {useIsFocused} from '@react-navigation/native';
+import StickyBannerAd from '../../../components/admob/StickyBannerAd';
 
 type OrderHistoryProps = StackScreenProps<RootStackParamList, 'OrderHistory'>;
 
@@ -45,64 +46,73 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({navigation}) => {
         );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'delivery' && styles.activeTabButton,
-          ]}
-          onPress={() => setActiveTab('delivery')}>
-          <Text
+    <View style={styles.wrapper}>
+      <View style={styles.container}>
+        <View style={styles.tabBar}>
+          <TouchableOpacity
             style={[
-              styles.tabLabel,
-              activeTab === 'delivery' && styles.activeTabLabel,
-            ]}>
-            Delivery Service
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'pickup' && styles.activeTabButton,
-          ]}
-          onPress={() => setActiveTab('pickup')}>
-          <Text
-            style={[
-              styles.tabLabel,
-              activeTab === 'pickup' && styles.activeTabLabel,
-            ]}>
-            Pickup
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <FlatList
-        data={filteredOrders}
-        keyExtractor={item => item._id}
-        renderItem={({item}) => (
-          <View style={styles.orderCard}>
-            <Text style={styles.orderId}>Order #{item.orderId}</Text>
-            <Text style={styles.orderDetail}>
-              Total: ₹{item.totalPrice} | Items: {item.items.length}
+              styles.tabButton,
+              activeTab === 'delivery' && styles.activeTabButton,
+            ]}
+            onPress={() => setActiveTab('delivery')}>
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === 'delivery' && styles.activeTabLabel,
+              ]}>
+              Delivery Service
             </Text>
-            <Text style={styles.orderStatus}>Status: {item.status}</Text>
-          </View>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>
-            {activeTab === 'delivery'
-              ? 'No delivered orders yet'
-              : 'No completed pickup orders yet'}
-          </Text>
-        }
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'pickup' && styles.activeTabButton,
+            ]}
+            onPress={() => setActiveTab('pickup')}>
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === 'pickup' && styles.activeTabLabel,
+              ]}>
+              Pickup
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          data={filteredOrders}
+          keyExtractor={item => item._id}
+          renderItem={({item}) => (
+            <View style={styles.orderCard}>
+              <Text style={styles.orderId}>Order #{item.orderId}</Text>
+              <Text style={styles.orderDetail}>
+                Total: ₹{item.totalPrice} | Items: {item.items.length}
+              </Text>
+              <Text style={styles.orderStatus}>Status: {item.status}</Text>
+            </View>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              {activeTab === 'delivery'
+                ? 'No delivered orders yet'
+                : 'No completed pickup orders yet'}
+            </Text>
+          }
+          contentContainerStyle={[styles.listContainer, styles.listWithAd]}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+      
+      {/* Sticky Banner Ad */}
+      <StickyBannerAd />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -141,6 +151,9 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 10,
+  },
+  listWithAd: {
+    paddingBottom: 80, // Add space for sticky banner ad
   },
   orderCard: {
     backgroundColor: '#fff',

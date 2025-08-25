@@ -13,7 +13,7 @@ export const ADMOB_CONFIG: AdMobConfig = {
   
   bannerAdUnitId: __DEV__
     ? 'ca-app-pub-3940256099942544/6300978111' // Test banner ad unit
-    : 'ca-app-pub-xxxxxxxxxxxxx/yyyyyyyyyyyyyy', // Replace with your production banner ad unit
+    : 'ca-app-pub-2620094529158311/4175768244', // Production banner ad unit
   
   nativeAdUnitId: __DEV__
     ? 'ca-app-pub-3940256099942544/2247696110' // Test native ad unit

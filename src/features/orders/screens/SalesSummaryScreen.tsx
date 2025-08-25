@@ -11,6 +11,7 @@ import {StackNavigationProp} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
 import api from '../../../services/api';
 import {storage} from '../../../utils/storage';
+import StickyBannerAd from '../../../components/admob/StickyBannerAd';
 
 type SalesSummaryScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -157,47 +158,62 @@ const SalesSummaryScreen: React.FC<SalesSummaryScreenProps> = ({
     : 'N/A';
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Sales Summary</Text>
-        <Text style={styles.dateRange}>
-          {fromDate} - {toDate}
-        </Text>
-      </View>
-
-      <View style={styles.cardContainer}>
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Total Orders</Text>
-          <Text style={styles.cardValue}>{salesData.orderCount}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Total Revenue</Text>
-          <Text style={styles.cardValue}>
-            {salesData.currency} {salesData.totalSales.toLocaleString('en-IN')}
+    <View style={styles.wrapper}>
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerContainer}>
+          <Text style={styles.header}>Sales Summary</Text>
+          <Text style={styles.dateRange}>
+            {fromDate} - {toDate}
           </Text>
         </View>
-      </View>
 
-      <View style={styles.infoContainer}>
-        <Text style={styles.infoTitle}>Additional Information</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Branch ID:</Text>
-          <Text style={styles.infoValue}>{salesData.branchId}</Text>
+        <View style={styles.cardContainer}>
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Total Orders</Text>
+            <Text style={styles.cardValue}>{salesData.orderCount}</Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Total Revenue</Text>
+            <Text style={styles.cardValue}>
+              {salesData.currency} {salesData.totalSales.toLocaleString('en-IN')}
+            </Text>
+          </View>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Currency:</Text>
-          <Text style={styles.infoValue}>{salesData.currency}</Text>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoTitle}>Additional Information</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Branch ID:</Text>
+            <Text style={styles.infoValue}>{salesData.branchId}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Currency:</Text>
+            <Text style={styles.infoValue}>{salesData.currency}</Text>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+      
+      {/* Sticky Banner Ad */}
+      <StickyBannerAd />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     flex: 1,
     backgroundColor: '#f5f5f7',
+  },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 80, // Add space for sticky banner ad
   },
   loadingContainer: {
     flex: 1,
