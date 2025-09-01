@@ -10,6 +10,8 @@
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Google Advertising ID permission for AdMob -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 <!-- For Android 12 and below -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
 <!-- For Android 13+ -->

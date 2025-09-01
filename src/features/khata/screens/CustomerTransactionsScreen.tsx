@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -39,11 +39,41 @@ const CustomerTransactionsScreen: React.FC<CustomerTransactionsScreenProps> = ({
   route,
   navigation,
 }) => {
-  const {customerId, customerName, customerPhone, transactions, currentDue} = route.params;
+  const {customerId, customerName, customerPhone, transactions: initialTransactions, currentDue} = route.params;
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [updatedDue, setUpdatedDue] = useState(currentDue || 0);
+  const [transactions, setTransactions] = useState(initialTransactions);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Function to fetch fresh customer data
+  const fetchCustomerData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const response = await api.get('/khata/branch');
+      if (response.data && response.data.customers && response.data.customers.length > 0) {
+        // Find the specific customer by ID
+        const customerData = response.data.customers.find((customer: any) => customer.customerId === customerId);
+        if (customerData) {
+          setTransactions(customerData.transactions || []);
+          setUpdatedDue(customerData.currentDue || 0);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [customerId]);
+
+  // Auto-refresh data when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchCustomerData();
+    });
+    return unsubscribe;
+  }, [navigation, fetchCustomerData]);
 
   const renderTransactionItem = ({item}: {item: Transaction}) => (
     <View style={styles.transactionCard}>
@@ -99,8 +129,7 @@ const CustomerTransactionsScreen: React.FC<CustomerTransactionsScreenProps> = ({
     try {
       const response = await api.post('/pay-later/partial-payment', {
         customerId: customerId,
-        customerPhone: customerPhone,
-        amountPaid: amount,
+        amount: amount,
       });
       
       if (response.data.success) {
@@ -109,6 +138,9 @@ const CustomerTransactionsScreen: React.FC<CustomerTransactionsScreenProps> = ({
         Alert.alert('Payment Recorded!', `Payment of ₹${amount.toFixed(2)} has been recorded successfully.`);
         setShowPaymentModal(false);
         setPaymentAmount('');
+        
+        // Refresh the screen data after successful payment
+        await fetchCustomerData();
       }
     } catch (error: any) {
       console.error('Error processing payment:', error);
@@ -149,6 +181,8 @@ const CustomerTransactionsScreen: React.FC<CustomerTransactionsScreenProps> = ({
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyState}
+        refreshing={refreshing}
+        onRefresh={fetchCustomerData}
       />
       
       {/* Current Due Display */}

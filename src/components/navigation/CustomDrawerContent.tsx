@@ -173,7 +173,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
           </View>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-        <Text style={styles.versionText}>Version 2.3.6</Text>
+        <Text style={styles.versionText}>Version 2.5.0</Text>
       </View>
     </SafeAreaView>
   );

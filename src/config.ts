@@ -1,7 +1,7 @@
 // src/config.ts
 export const config = {
-  BASE_URL: 'https://api.dokirana.com/api', // API base URL for axios
-  SOCKET_URL: 'https://api.dokirana.com/' // WebSocket URL for socket.io - removed /api for socket connection
+  BASE_URL: 'https://dokirana-api-47864120198.asia-south1.run.app/api', // API base URL for axios
+  SOCKET_URL: 'http://34.180.11.49:3001/' // WebSocket URL for socket.io - removed /api for socket connection
   
  
 };

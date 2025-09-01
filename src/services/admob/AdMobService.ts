@@ -304,17 +304,23 @@ class AdMobService {
     }
   }
 
-  // Preload ads
+  // Enhanced preload ads with better timing
   public preloadRewardedAd(): void {
-    if (!this.state.rewardedAdLoaded) {
+    if (!this.state.rewardedAdLoaded && !this.state.isLoadingAd) {
       this.createRewardedAd();
     }
   }
 
   public preloadInterstitialAd(): void {
-    if (!this.state.interstitialAdLoaded) {
+    if (!this.state.interstitialAdLoaded && !this.state.isLoadingAd) {
       this.createInterstitialAd();
     }
+  }
+
+  // Preload all ads for better performance
+  public preloadAllAds(): void {
+    setTimeout(() => this.preloadRewardedAd(), 1000);
+    setTimeout(() => this.preloadInterstitialAd(), 2000);
   }
 
   // Check if ad can be shown (time-based throttling)

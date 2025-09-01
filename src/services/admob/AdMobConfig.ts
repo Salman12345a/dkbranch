@@ -31,9 +31,10 @@ export const DEFAULT_AD_REQUEST_OPTIONS = {
 
 // Ad configuration constants
 export const AD_CONFIG = {
-  PRELOAD_TIMEOUT: 10000, // 10 seconds
-  SHOW_TIMEOUT: 15000, // 15 seconds
-  RETRY_DELAY: 30000, // 30 seconds
-  MAX_RETRY_ATTEMPTS: 3,
-  MIN_TIME_BETWEEN_ADS: 60000, // 1 minute
+  PRELOAD_TIMEOUT: 8000, // 8 seconds - faster preloading
+  SHOW_TIMEOUT: 12000, // 12 seconds - quicker timeout
+  RETRY_DELAY: 15000, // 15 seconds - faster retry
+  MAX_RETRY_ATTEMPTS: 2, // Reduced attempts for efficiency
+  MIN_TIME_BETWEEN_ADS: 45000, // 45 seconds - slightly more frequent
+  BANNER_REFRESH_INTERVAL: 60000, // 1 minute banner refresh
 };

@@ -10,24 +10,30 @@ interface StickyBannerAdProps {
 const StickyBannerAd: React.FC<StickyBannerAdProps> = ({ style }) => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usingFallback, setUsingFallback] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 2;
 
   const handleAdLoaded = () => {
-    console.log(`${usingFallback ? 'Fallback banner' : 'Banner'} ad loaded successfully`);
+    console.log('Sticky banner ad loaded successfully');
     setLoaded(true);
     setError(null);
+    setRetryCount(0);
   };
 
   const handleAdFailedToLoad = (error: any) => {
-    // Only log unexpected errors, suppress expected no-fill errors
-    if (error.code !== 'googleMobileAds/error-code-no-fill') {
-      console.error(`${usingFallback ? 'Fallback banner' : 'Banner'} ad failed to load:`, error);
+    // Silently handle no-fill errors, retry others
+    if (error.code === 'googleMobileAds/error-code-no-fill') {
+      setError('no-fill');
+      setLoaded(false);
+      return;
     }
     
-    if (!usingFallback && error.code === 'googleMobileAds/error-code-no-fill') {
-      // Silently switch to fallback without logging error
-      setUsingFallback(true);
-      setError(null);
+    // Retry logic for network/loading errors
+    if (retryCount < maxRetries) {
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setError(null);
+      }, 2000 * (retryCount + 1)); // Exponential backoff
       return;
     }
     
@@ -39,15 +45,13 @@ const StickyBannerAd: React.FC<StickyBannerAdProps> = ({ style }) => {
     return null; // Don't show anything if both ads fail to load
   }
 
-  // Use production banner ad, with test banner as fallback for no-fill errors
-  const adUnitId = usingFallback 
-    ? 'ca-app-pub-3940256099942544/6300978111' // Test banner ad unit as fallback
-    : ADMOB_CONFIG.bannerAdUnitId;
+  // Use production banner ad only - no fallback to maintain production quality
+  const adUnitId = ADMOB_CONFIG.bannerAdUnitId;
 
   return (
     <View style={[styles.stickyContainer, style]}>
       <BannerAd
-        key={usingFallback ? 'fallback' : 'banner'} // Force re-render when switching
+        key={`banner-${retryCount}`} // Force re-render on retry
         unitId={adUnitId}
         size={BannerAdSize.BANNER}
         requestOptions={{

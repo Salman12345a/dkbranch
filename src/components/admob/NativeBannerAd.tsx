@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import { ADMOB_CONFIG } from '../../services/admob/AdMobConfig';
@@ -10,20 +10,55 @@ interface NativeBannerAdProps {
 const NativeBannerAd: React.FC<NativeBannerAdProps> = ({ style }) => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(true);
+  const maxRetries = 2;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('NativeBannerAd mounted with config:', {
+      adUnitId: ADMOB_CONFIG.nativeAdUnitId,
+      testMode: ADMOB_CONFIG.testMode
+    });
+  }, []);
 
   const handleAdLoaded = () => {
     console.log('Native ad loaded successfully');
     setLoaded(true);
     setError(null);
+    setRetryCount(0);
+    setIsVisible(true);
   };
 
   const handleAdFailedToLoad = (error: any) => {
-    // Silently handle all ad load failures - show nothing if native ad fails
+    console.log('Native ad failed to load:', error.code, error.message);
+    
+    // Silently handle no-fill errors, retry network/loading errors
+    if (error.code === 'googleMobileAds/error-code-no-fill') {
+      console.log('No-fill error - hiding ad');
+      setError('no-fill');
+      setLoaded(false);
+      setIsVisible(false);
+      return;
+    }
+    
+    // Retry logic for network/loading errors
+    if (retryCount < maxRetries) {
+      console.log(`Retrying native ad load (attempt ${retryCount + 1})`);
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setError(null);
+      }, 1500 * (retryCount + 1)); // Exponential backoff
+      return;
+    }
+    
+    console.log('Max retries reached - hiding ad');
     setError(error.message || 'Failed to load ad');
     setLoaded(false);
+    setIsVisible(false);
   };
 
-  if (error) {
+  if (!isVisible || error) {
     return null; // Don't show anything if native ad fails to load
   }
 
@@ -33,6 +68,7 @@ const NativeBannerAd: React.FC<NativeBannerAdProps> = ({ style }) => {
   return (
     <View style={[styles.container, style]}>
       <BannerAd
+        key={`native-${retryCount}`} // Force re-render on retry
         unitId={adUnitId}
         size={BannerAdSize.MEDIUM_RECTANGLE}
         requestOptions={{
