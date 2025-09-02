@@ -20,7 +20,7 @@ import { storage } from '../../../utils/storage';
 import CustomHeader from '../../../components/ui/CustomHeader';
 import CustomButton from '../../../components/ui/CustomButton';
 import { inventoryService, createCustomProduct } from '../../../services/inventoryService';
-import { launchImageLibrary, Asset } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-picker';
 import ImageResizer from 'react-native-image-resizer';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Picker } from '@react-native-picker/picker';
@@ -75,7 +75,46 @@ const CustomProducts = () => {
     }
   };
 
-  const pickImage = async () => {
+  const pickImage = () => {
+    Alert.alert(
+      'Select Image',
+      'Choose an option to add product image',
+      [
+        {
+          text: 'Camera',
+          onPress: () => openCamera(),
+        },
+        {
+          text: 'Gallery',
+          onPress: () => openGallery(),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const openCamera = async () => {
+    try {
+      const result = await launchCamera({
+        mediaType: 'photo',
+        quality: 0.5,
+        saveToPhotos: true,
+      });
+      if (!result.didCancel && result.assets && result.assets.length > 0) {
+        const compressed = await compressImage(result.assets[0]);
+        setImage(compressed);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to open camera');
+      console.error('Camera error:', err);
+    }
+  };
+
+  const openGallery = async () => {
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
@@ -86,8 +125,8 @@ const CustomProducts = () => {
         setImage(compressed);
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to pick image');
-      console.error('Image picker error:', err);
+      Alert.alert('Error', 'Failed to pick image from gallery');
+      console.error('Gallery picker error:', err);
     }
   };
   
