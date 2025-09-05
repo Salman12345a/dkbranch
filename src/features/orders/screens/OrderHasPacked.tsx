@@ -56,13 +56,6 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
     const fetchOrderDetails = async () => {
       try {
         const response = await api.get(`/orders/${initialOrder._id}`);
-        console.log(
-          'Fetched Order Data:',
-          JSON.stringify(response.data, null, 2),
-        );
-        console.log('Customer Name:', response.data.customerName);
-        console.log('Customer Phone:', response.data.customerPhone);
-        console.log('Customer Info:', response.data.customer);
         setOrderState(response.data as ExtendedOrder);
         updateOrder(initialOrder._id, response.data);
       } catch (error) {
@@ -136,6 +129,7 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
     }
   };
 
+
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
@@ -145,31 +139,29 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       </View>
 
       {/* Customer Information */}
-      {(orderState.customerName || orderState.customerPhone || orderState.customer?.name || orderState.customer?.phone) && (
+      {(orderState.customerPhone || orderState.customer?.phone) && (
         <View style={styles.customerCard}>
-          
           <View style={styles.customerDetails}>
-            {(orderState.customerName || orderState.customer?.name) && (
-              <View style={styles.customerRow}>
-                <Icon name="account-circle" size={20} color="#7f8c8d" />
-                <Text style={styles.customerName}>
-                  {orderState.customerName || orderState.customer?.name}
-                </Text>
-              </View>
-            )}
-            {(orderState.customerPhone || orderState.customer?.phone) && (
-              <TouchableOpacity 
-                style={styles.customerRow} 
-                onPress={handlePhoneCall}
-                activeOpacity={0.7}
-              >
-                <Icon name="phone" size={20} color="#2ecc71" />
-                <Text style={styles.customerPhone}>
-                  {orderState.customerPhone || orderState.customer?.phone}
-                </Text>
-                <Icon name="call" size={16} color="#2ecc71" style={styles.callIcon} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity 
+              style={styles.customerPhoneButton} 
+              onPress={handlePhoneCall}
+              activeOpacity={0.7}
+            >
+              <Icon name="phone" size={20} color="#FFFFFF" />
+              <Text style={styles.customerPhoneText}>
+                {(() => {
+                  const phone = orderState.customerPhone || orderState.customer?.phone;
+                  if (!phone) return 'Phone not available';
+                  // Remove country code (91) if present and format as local number
+                  const phoneStr = phone.toString();
+                  if (phoneStr.startsWith('91') && phoneStr.length === 12) {
+                    return phoneStr.substring(2);
+                  }
+                  return phoneStr;
+                })()}
+              </Text>
+              <Icon name="person" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -619,8 +611,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
-  callIcon: {
-    marginLeft: 8,
+  customerPhoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2ecc71',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: '#2ecc71',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#27ae60',
+  },
+  customerPhoneText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginLeft: 12,
+    fontWeight: '600',
+    flex: 1,
   },
   adContainer: {
     marginHorizontal: 0,
