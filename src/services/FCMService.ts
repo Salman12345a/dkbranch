@@ -1,16 +1,19 @@
 import messaging from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import PushNotification from 'react-native-push-notification';
 import axios from 'axios';
 import { config } from '../config';
+import { storage } from '../utils/storage';
+import PushNotification from 'react-native-push-notification';
 
 class FCMService {
   // Initialize FCM
   async init() {
-    // Configure push notification channel for Android
+    // Configure push notification channel for Android - do this first
     if (Platform.OS === 'android') {
       this.createNotificationChannel();
+      // Also configure PushNotification settings
+      this.configurePushNotification();
     }
 
     // Request permission for iOS (Android doesn't need this)
@@ -27,24 +30,72 @@ class FCMService {
     // Set up foreground message handler
     this.onMessage();
 
-    // Set up background/quit state handlers
-    this.setBackgroundMessageHandler();
+    // Note: Background message handler is set up in index.js
   }
 
   // Create notification channel for Android
   createNotificationChannel() {
-    PushNotification.createChannel(
+    // Create multiple channels for different types of notifications
+    const channels = [
       {
-        channelId: 'orders', // Must match the channelId sent from backend
+        channelId: 'orders',
         channelName: 'Order Notifications',
         channelDescription: 'Notifications for new orders and updates',
         playSound: true,
-        soundName: 'default',
+        soundName: 'order_notification.mp3', // Custom ringtone for orders
         importance: 4, // High importance
         vibrate: true,
       },
-      (created: boolean) => console.log(`Channel 'orders' created: ${created}`)
-    );
+      {
+        channelId: 'order_updates',
+        channelName: 'Order Updates',
+        channelDescription: 'Notifications for order status changes',
+        playSound: true,
+        soundName: 'default',
+        importance: 3, // Default importance
+        vibrate: true,
+      },
+      {
+        channelId: 'general',
+        channelName: 'General Notifications',
+        channelDescription: 'General app notifications',
+        playSound: true,
+        soundName: 'default',
+        importance: 2, // Low importance
+        vibrate: false,
+      }
+    ];
+
+    channels.forEach(channel => {
+      PushNotification.createChannel(
+        channel,
+        (created: boolean) => console.log(`Channel '${channel.channelId}' created: ${created}`)
+      );
+    });
+  }
+
+  // Configure PushNotification settings
+  configurePushNotification() {
+    PushNotification.configure({
+      // Called when Token is generated (iOS and Android)
+      onRegister: function (token) {
+        console.log('PushNotification TOKEN:', token);
+      },
+
+      // Called when a remote is received or opened/clicked
+      onNotification: function (notification) {
+        console.log('PushNotification NOTIFICATION:', notification);
+        
+        // Process the notification tap
+        if (notification.userInteraction) {
+          // User tapped on notification
+          console.log('User tapped notification:', notification);
+        }
+        
+        // Required on iOS only
+        notification.finish && notification.finish();
+      },
+    });
   }
 
   // Request Android notification permission for Android 13+
@@ -93,7 +144,7 @@ class FCMService {
     }
   }
 
-  // Get FCM token and register with backend
+  // Get FCM token without auto-registering with backend
   async getFCMToken() {
     try {
       const fcmToken = await messaging().getToken();
@@ -102,12 +153,23 @@ class FCMService {
       // Store token locally
       await AsyncStorage.setItem('fcmToken', fcmToken);
 
-      // Register token with backend
-      await this.registerTokenWithBackend(fcmToken);
-
       return fcmToken;
     } catch (error) {
       console.error('FCM token retrieval error:', error);
+      return null;
+    }
+  }
+
+  // Get FCM token and register with backend (legacy method)
+  async getFCMTokenAndRegister() {
+    try {
+      const fcmToken = await this.getFCMToken();
+      if (fcmToken) {
+        await this.registerTokenWithBackend(fcmToken);
+      }
+      return fcmToken;
+    } catch (error) {
+      console.error('FCM token retrieval and registration error:', error);
       return null;
     }
   }
@@ -128,8 +190,14 @@ class FCMService {
   // Register token with backend
   async registerTokenWithBackend(token: string) {
     try {
-      const userId = await AsyncStorage.getItem('branchId');
-      const authToken = await AsyncStorage.getItem('accessToken');
+      // Use MMKV storage to match the app's storage system
+      let userId = storage.getString('branchId');
+      if (!userId) {
+        userId = storage.getString('userId');
+      }
+      const authToken = storage.getString('accessToken');
+      
+      console.log('FCM Registration - userId:', userId, 'hasToken:', !!authToken);
       
       if (!userId || !authToken) {
         console.log('User not logged in, skipping FCM token registration');
@@ -137,7 +205,7 @@ class FCMService {
       }
 
       await axios.post(
-        `${config.BASE_URL}/api/device-tokens/register`,
+        `${config.BASE_URL}/device-tokens/register`,
         {
           token,
           platform: Platform.OS,
@@ -155,61 +223,141 @@ class FCMService {
     }
   }
 
+  // Register FCM token after authentication is confirmed
+  async registerTokenAfterAuth() {
+    try {
+      const fcmToken = await AsyncStorage.getItem('fcmToken');
+      if (fcmToken) {
+        console.log('Registering existing FCM token after authentication');
+        await this.registerTokenWithBackend(fcmToken);
+      } else {
+        console.log('Getting new FCM token after authentication');
+        await this.getFCMTokenAndRegister();
+      }
+    } catch (error) {
+      console.error('Failed to register FCM token after auth:', error);
+    }
+  }
+
   // Handle foreground messages
   onMessage() {
     messaging().onMessage(async (remoteMessage) => {
-      console.log('FCM Message received in foreground:', remoteMessage);
+      console.log('=== FCM FOREGROUND MESSAGE RECEIVED ===');
+      console.log('Message:', JSON.stringify(remoteMessage, null, 2));
+      console.log('Has notification:', !!remoteMessage.notification);
+      console.log('Has data:', !!remoteMessage.data);
+      console.log('Message ID:', remoteMessage.messageId);
+      console.log('From:', remoteMessage.from);
       
       // Display local notification
       this.displayLocalNotification(remoteMessage);
     });
   }
 
-  // Set up background message handler
-  setBackgroundMessageHandler() {
-    // This handler will be called when app is in background or terminated
-    messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-      console.log('FCM Message handled in the background:', remoteMessage);
+
+  // Display background notification (for background messages)
+  displayBackgroundNotification(remoteMessage: any) {
+    const { notification, data } = remoteMessage;
+    
+    console.log('=== ATTEMPTING TO DISPLAY BACKGROUND NOTIFICATION ===');
+    console.log('Notification object:', notification);
+    console.log('Data object:', data);
+    
+    // Handle both notification and data-only messages
+    const title = notification?.title || data?.title || 'New Order';
+    const body = notification?.body || data?.body || 'You have a new order notification';
+    
+    console.log('Using title:', title);
+    console.log('Using body:', body);
+
+    try {
+      // Create a notification configuration object for background
+      const notificationConfig = {
+        channelId: 'orders',
+        title: title,
+        message: body,
+        playSound: true,
+        soundName: 'order_notification.mp3', // Custom ringtone
+        importance: 'high',
+        vibrate: true,
+        data: data || {},
+        visibility: 'public',
+        priority: 'high',
+        smallIcon: 'ic_notification', // Custom notification icon
+       
+        // Force notification to show
+        ongoing: false,
+        autoCancel: true,
+        // Add unique ID to prevent overwriting
+        id: Date.now(),
+        // Additional properties for background
+        userInteraction: false,
+        invokeApp: true,
+        // Custom notification styling
+        color: '#FF6B35', // Orange color for notification
+        showWhen: true,
+        when: Date.now(),
+      };
       
-      // We don't need to create a local notification here as FCM will show it automatically
-      // However, we might want to handle data from the message
-      return Promise.resolve();
-    });
+      console.log('=== SENDING BACKGROUND NOTIFICATION ===');
+      console.log('Config:', JSON.stringify(notificationConfig, null, 2));
+      PushNotification.localNotification(notificationConfig);
+      console.log('Background notification sent successfully');
+    } catch (error) {
+      console.error('Error displaying background notification:', error);
+    }
   }
 
   // Display local notification (for foreground messages)
   displayLocalNotification(remoteMessage: any) {
     const { notification, data } = remoteMessage;
     
-    console.log('Attempting to display local notification:', { notification, data });
+    console.log('=== ATTEMPTING TO DISPLAY LOCAL NOTIFICATION ===');
+    console.log('Notification object:', notification);
+    console.log('Data object:', data);
     
-    if (!notification) {
-      console.warn('No notification object found in the message');
-      return;
-    }
+    // Handle both notification and data-only messages
+    const title = notification?.title || data?.title || 'New Order';
+    const body = notification?.body || data?.body || 'You have a new order notification';
+    
+    console.log('Using title:', title);
+    console.log('Using body:', body);
 
     try {
       // Create a notification configuration object
       const notificationConfig = {
         channelId: 'orders',
-        title: notification.title || 'New Notification',
-        message: notification.body || 'You have a new notification',
+        title: title,
+        message: body,
         playSound: true,
-        soundName: 'default',
+        soundName: 'order_notification.mp3', // Custom ringtone
         importance: 'high',
         vibrate: true,
         data: data || {},
         // Add these properties to increase visibility
         visibility: 'public',
         priority: 'high',
-        smallIcon: 'ic_notification', // Make sure this icon exists in your Android resources
-        largeIcon: '',
+        smallIcon: 'ic_notification', // Custom notification icon
+        largeIcon: 'https://storage.googleapis.com/dokirana-official/logo.png', // DoKirana logo
         // Ensure notification shows even when app is in foreground
         ignoreInForeground: false,
+        // Add unique ID to prevent overwriting
+        id: Date.now(),
+        // Force show in foreground
+        userInteraction: false,
+        // Additional Android properties
+        ongoing: false,
+        autoCancel: true,
+        // Custom notification styling
+        color: '#FF6B35', // Orange color for notification
+        showWhen: true,
+        when: Date.now(),
       };
       
-      console.log('Sending local notification with config:', notificationConfig);
+      console.log('=== SENDING LOCAL NOTIFICATION ===');
+      console.log('Config:', JSON.stringify(notificationConfig, null, 2));
       PushNotification.localNotification(notificationConfig);
+      console.log('Local notification sent successfully');
     } catch (error) {
       console.error('Error displaying local notification:', error);
     }

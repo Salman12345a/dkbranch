@@ -119,6 +119,11 @@ const App = () => {
         if (storedBranchId && token && !userId) {
           setUserId(storedBranchId);
 
+          // Re-register FCM token after authentication is confirmed
+          FCMService.registerTokenAfterAuth().catch(error => {
+            console.error('Failed to re-register FCM token on login:', error);
+          });
+
           // Only connect socket and fetch orders on initial mount
           if (isInitialConnection) {
             try {

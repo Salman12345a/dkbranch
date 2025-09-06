@@ -70,6 +70,7 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
   const [revokeLoading, setRevokeLoading] = useState<string | null>(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [approveLoading, setApproveLoading] = useState(false);
 
   useEffect(() => {
@@ -175,26 +176,33 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
       return;
     }
 
+    if (!customerName.trim()) {
+      Alert.alert('Missing Info', 'Please enter customer name.');
+      return;
+    }
+
     const fullPhoneNumber = `+91${phoneNumber.trim()}`;
     setApproveLoading(true);
     try {
       const response = await api.post('/pay-later/approve-customer', {
         phone: fullPhoneNumber,
+        customerName: customerName.trim(),
       });
       
       if (response.data.success) {
         Alert.alert('Success!', 'Customer has been approved for credit.');
         // Add new customer to approved list
         const newCustomer: ApprovedCustomer = {
-          customerId: response.data.customer.customerId,
-          customerName: response.data.customer.customerName,
-          customerPhone: response.data.customer.customerPhone,
+          customerId: response.data.customer?.customerId || Date.now().toString(),
+          customerName: customerName.trim(),
+          customerPhone: fullPhoneNumber,
           payLaterEligible: true,
           approvedAt: new Date().toISOString(),
         };
         setApprovedCustomers(prev => [newCustomer, ...prev]);
         setShowApproveModal(false);
         setPhoneNumber('');
+        setCustomerName('');
       }
     } catch (error: any) {
       console.error('Error approving customer:', error);
@@ -424,10 +432,23 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
                   onPress={() => {
                     setShowApproveModal(false);
                     setPhoneNumber('');
+                    setCustomerName('');
                   }}
                 >
                   <Icon name="close" size={24} color="#7f8c8d" />
                 </TouchableOpacity>
+              </View>
+              
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Customer Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter customer full name"
+                  value={customerName}
+                  onChangeText={setCustomerName}
+                  autoCapitalize="words"
+                  autoFocus={true}
+                />
               </View>
               
               <View style={styles.inputContainer}>
@@ -443,7 +464,6 @@ const KhataScreen: React.FC<KhataScreenProps> = ({navigation}) => {
                     onChangeText={setPhoneNumber}
                     keyboardType="phone-pad"
                     maxLength={10}
-                    autoFocus={true}
                   />
                 </View>
               </View>
@@ -692,6 +712,15 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     fontSize: 16,
     backgroundColor: 'transparent',
+  },
+  textInput: {
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    fontSize: 16,
+    backgroundColor: '#f8f9fa',
   },
   submitButton: {
     backgroundColor: '#2ecc71',

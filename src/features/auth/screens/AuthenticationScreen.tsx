@@ -108,25 +108,34 @@ const AuthenticationScreen: React.FC = () => {
         if (demoResponse && demoResponse.data && demoResponse.data.accessToken) {
           // Persist tokens
           const {accessToken, refreshToken, branch} = demoResponse.data;
-          if (accessToken) storage.set('accessToken', accessToken);
-          if (refreshToken) storage.set('refreshToken', refreshToken);
+          if (accessToken) await storage.set('accessToken', accessToken);
+          if (refreshToken) await storage.set('refreshToken', refreshToken);
 
           // Persist branch specifics
           if (branch) {
             if (branch._id) {
-              storage.set('branchId', branch._id);
+              await storage.set('branchId', branch._id);
             }
-            storage.set('branchPhone', branch.phone || '+91' + phone);
-            storage.set('isRegistered', true);
-            storage.set('isApproved', branch.status === 'approved');
-            if (branch.name) storage.set('branchName', branch.name);
-            if (branch.ownerName) storage.set('ownerName', branch.ownerName);
+            await storage.set('branchPhone', branch.phone || '+91' + phone);
+            await storage.set('isRegistered', true);
+            await storage.set('isApproved', branch.status === 'approved');
+            if (branch.name) await storage.set('branchName', branch.name);
+            if (branch.ownerName) await storage.set('ownerName', branch.ownerName);
           }
 
           // Store branchId as userId for API compatibility
           if (branch && branch._id) {
             setUserId(branch._id);
-            storage.set('userId', branch._id);
+            await storage.set('userId', branch._id);
+          }
+
+          // Register FCM token after demo login (now that storage operations are complete)
+          try {
+            const FCMService = require('../../../services/FCMService').default;
+            await FCMService.registerTokenAfterAuth();
+            console.log('FCM token registered after demo login');
+          } catch (fcmError) {
+            console.error('FCM registration error after demo login:', fcmError);
           }
 
           // Navigate directly to Home (will redirect to Status if not approved)

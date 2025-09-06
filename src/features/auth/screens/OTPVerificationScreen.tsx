@@ -291,12 +291,12 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
           }
         }
 
-        // Initialize FCM and register token with backend
+        // Initialize FCM and register token with backend after authentication
         try {
           console.log('Initializing FCM service after successful login');
           await FCMService.init();
-          const fcmToken = await FCMService.getFCMToken();
-          console.log('FCM token registration successful:', fcmToken);
+          await FCMService.registerTokenAfterAuth();
+          console.log('FCM token registration successful after authentication');
         } catch (fcmError) {
           console.error('FCM initialization error:', fcmError);
           // Continue even if FCM registration fails

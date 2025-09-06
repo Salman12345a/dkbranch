@@ -10,6 +10,9 @@
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Notification permissions -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Google Advertising ID permission for AdMob -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 <!-- For Android 12 and below -->
@@ -38,6 +41,32 @@
       <meta-data
           android:name="com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING"
           android:value="true"/>
+      <!-- Firebase Messaging Service for background notifications -->
+      <service
+        android:name="io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService"
+        android:exported="false">
+        <intent-filter>
+          <action android:name="com.google.firebase.MESSAGING_EVENT" />
+        </intent-filter>
+      </service>
+      
+      <!-- Push notification receiver -->
+      <receiver
+        android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationActions"
+        android:exported="false" />
+      <receiver
+        android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationPublisher"
+        android:exported="false" />
+      <receiver
+        android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationBootEventReceiver"
+        android:exported="false">
+        <intent-filter>
+          <action android:name="android.intent.action.BOOT_COMPLETED" />
+          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+          <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+        </intent-filter>
+      </receiver>
+      
       <service
         android:name=".socket.service.OrderSocketService"
         android:enabled="true"
