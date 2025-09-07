@@ -29,7 +29,33 @@ const App = () => {
     updateOrder,
     setWalletBalance,
     addWalletTransaction,
+    orders,
   } = useStore();
+
+  // Function to navigate to order detail with complete order data
+  const navigateToOrderDetail = async (orderId: string) => {
+    try {
+      // First try to find the order in the store
+      let order = orders.find(o => o._id === orderId);
+      
+      if (!order) {
+        // If not found in store, fetch from API
+        console.log('Order not found in store, fetching from API:', orderId);
+        const api = require('./src/services/api').default;
+        const response = await api.get(`/orders/${orderId}`);
+        order = response.data;
+      }
+      
+      if (order && navigationRef.current) {
+        console.log('Navigating to OrderDetail with complete order data:', order);
+        navigationRef.current.navigate('OrderDetail', { order });
+      } else {
+        console.error('Failed to fetch order data for navigation:', orderId);
+      }
+    } catch (error) {
+      console.error('Error fetching order for navigation:', error);
+    }
+  };
 
   const handleNewOrder = useCallback(
     (orderData: any) => {
@@ -89,11 +115,9 @@ const App = () => {
     messaging().onNotificationOpenedApp(remoteMessage => {
       console.log('Notification opened app:', remoteMessage);
       // Handle navigation if needed
-      if (navigationRef.current && remoteMessage.data?.orderId) {
-        // Navigate to order details
-        navigationRef.current.navigate('OrderDetail', {
-          order: {_id: remoteMessage.data.orderId},
-        });
+      if (navigationRef.current && remoteMessage.data?.orderId && typeof remoteMessage.data.orderId === 'string') {
+        // Navigate to order details with proper order data
+        navigateToOrderDetail(remoteMessage.data.orderId);
       }
     });
     
@@ -117,12 +141,45 @@ const App = () => {
         const token = await AsyncStorage.getItem('accessToken');
 
         if (storedBranchId && token && !userId) {
-          setUserId(storedBranchId);
+          setUserId(storedBranchId as string);
 
-          // Re-register FCM token after authentication is confirmed
-          FCMService.registerTokenAfterAuth().catch(error => {
-            console.error('Failed to re-register FCM token on login:', error);
-          });
+          // Re-register FCM token after authentication is confirmed with multiple retries
+          const retryFCMRegistration = async (attempt = 1, maxAttempts = 3) => {
+            try {
+              console.log(`[FCM] Registration attempt ${attempt}/${maxAttempts}`);
+              await FCMService.registerTokenAfterAuth();
+              console.log(`[FCM] Registration successful on attempt ${attempt}`);
+            } catch (error) {
+              console.error(`[FCM] Registration failed on attempt ${attempt}:`, error);
+              if (attempt < maxAttempts) {
+                const delay = attempt * 2000; // Exponential backoff: 2s, 4s, 6s
+                console.log(`[FCM] Retrying in ${delay}ms...`);
+                setTimeout(() => retryFCMRegistration(attempt + 1, maxAttempts), delay);
+              } else {
+                console.error('[FCM] All registration attempts failed');
+              }
+            }
+          };
+
+          // Start FCM registration with retries
+          setTimeout(() => retryFCMRegistration(), 1000); // Wait 1 second for auth to settle
+
+          // Also retry any pending token registration
+          setTimeout(() => {
+            FCMService.retryPendingTokenRegistration().catch(error => {
+              console.error('Failed to retry pending FCM token registration:', error);
+            });
+          }, 5000); // Wait 5 seconds for auth to fully settle
+
+          // Set up periodic FCM token registration check (every 30 minutes)
+          const fcmCheckInterval = setInterval(() => {
+            FCMService.checkTokenRegistrationStatus().catch(error => {
+              console.error('Failed to check FCM token registration status:', error);
+            });
+          }, 30 * 60 * 1000); // 30 minutes
+
+          // Store interval ID for cleanup
+          (global as any).fcmCheckInterval = fcmCheckInterval;
 
           // Only connect socket and fetch orders on initial mount
           if (isInitialConnection) {
@@ -163,9 +220,7 @@ const App = () => {
               const initialNotification = JSON.parse(initialNotificationStr);
               if (initialNotification.data?.orderId) {
                 setTimeout(() => {
-                  navigationRef.current?.navigate('OrderDetail', {
-                    order: {_id: initialNotification.data.orderId},
-                  });
+                  navigateToOrderDetail(initialNotification.data.orderId);
                 }, 1000); // Small delay to ensure navigation is ready
               }
               // Clear the stored notification
@@ -214,11 +269,25 @@ const App = () => {
   // Cleanup FCM when component unmounts
   useEffect(() => {
     return () => {
-      // If user logs out, unregister FCM token
-      if (!userId) {
-        FCMService.unregisterToken().catch(console.error);
+      // Clean up FCM check interval
+      if ((global as any).fcmCheckInterval) {
+        clearInterval((global as any).fcmCheckInterval);
+        (global as any).fcmCheckInterval = null;
       }
     };
+  }, []);
+
+  // Handle FCM token unregistration only on actual logout
+  const prevUserIdRef = React.useRef(userId);
+  useEffect(() => {
+    const prevUserId = prevUserIdRef.current;
+    prevUserIdRef.current = userId;
+    
+    // Only unregister FCM token if user was logged in and now is logged out
+    if (prevUserId && !userId) {
+      console.log('[FCM] User logged out, unregistering FCM token');
+      FCMService.unregisterToken().catch(console.error);
+    }
   }, [userId]);
 
   return (
