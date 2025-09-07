@@ -1,5 +1,5 @@
 import messaging from '@react-native-firebase/messaging';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { config } from '../config';
@@ -7,6 +7,9 @@ import { storage } from '../utils/storage';
 import PushNotification from 'react-native-push-notification';
 
 class FCMService {
+  private appState: AppStateStatus = 'active';
+  private isAppVisible: boolean = true;
+  private appStateSubscription: any = null;
   // Initialize FCM
   async init() {
     // Configure push notification channel for Android - do this first
@@ -27,6 +30,9 @@ class FCMService {
     // Listen for token refresh
     this.onTokenRefresh();
 
+    // Set up app state monitoring
+    this.setupAppStateMonitoring();
+
     // Set up foreground message handler
     this.onMessage();
 
@@ -42,9 +48,13 @@ class FCMService {
         channelName: 'Order Notifications',
         channelDescription: 'Notifications for new orders and updates',
         playSound: true,
-        soundName: 'order_notification.mp3', // Custom ringtone for orders
-        importance: 4, // High importance
+        soundName: 'order_notification', // Custom ringtone for orders (no extension)
+        importance: 5, // Maximum importance (IMPORTANCE_HIGH = 4, IMPORTANCE_MAX = 5)
         vibrate: true,
+        showBadge: true,
+        bypassDnd: true, // Bypass Do Not Disturb
+        lights: true,
+        lightColor: '#FF6B35',
       },
       {
         channelId: 'order_updates',
@@ -239,6 +249,24 @@ class FCMService {
     }
   }
 
+  // Setup app state monitoring to detect overlays
+  setupAppStateMonitoring() {
+    this.appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      console.log('App state changed from', this.appState, 'to', nextAppState);
+      
+      // Detect if app is covered by overlay (active but not visible)
+      if (this.appState === 'active' && nextAppState === 'background') {
+        this.isAppVisible = false;
+        console.log('App moved to background - notifications should use background handler');
+      } else if (nextAppState === 'active') {
+        this.isAppVisible = true;
+        console.log('App is now active and visible');
+      }
+      
+      this.appState = nextAppState;
+    });
+  }
+
   // Handle foreground messages
   onMessage() {
     messaging().onMessage(async (remoteMessage) => {
@@ -248,9 +276,16 @@ class FCMService {
       console.log('Has data:', !!remoteMessage.data);
       console.log('Message ID:', remoteMessage.messageId);
       console.log('From:', remoteMessage.from);
+      console.log('App state:', this.appState, 'Visible:', this.isAppVisible);
       
-      // Display local notification
-      this.displayLocalNotification(remoteMessage);
+      // Always display notification, but use appropriate method based on app visibility
+      if (this.isAppVisible && this.appState === 'active') {
+        this.displayLocalNotification(remoteMessage);
+      } else {
+        // App might be covered by overlay, use background notification method
+        console.log('App not fully visible, using background notification method');
+        this.displayBackgroundNotification(remoteMessage);
+      }
     });
   }
 
@@ -271,21 +306,21 @@ class FCMService {
     console.log('Using body:', body);
 
     try {
-      // Create a notification configuration object for background
+      // Create a notification configuration object for background with maximum priority
       const notificationConfig = {
         channelId: 'orders',
         title: title,
         message: body,
         playSound: true,
-        soundName: 'order_notification.mp3', // Custom ringtone
-        importance: 'high',
+        soundName: 'order_notification', // Custom ringtone (no extension)
+        importance: 'max', // Maximum importance to bypass overlays
         vibrate: true,
         data: data || {},
         visibility: 'public',
-        priority: 'high',
+        priority: 'max', // Maximum priority
         smallIcon: 'ic_notification', // Custom notification icon
        
-        // Force notification to show
+        // Force notification to show even with overlays
         ongoing: false,
         autoCancel: true,
         // Add unique ID to prevent overwriting
@@ -297,9 +332,37 @@ class FCMService {
         color: '#FF6B35', // Orange color for notification
         showWhen: true,
         when: Date.now(),
+        
+        // Android-specific properties to bypass overlays
+        fullScreenIntent: true, // Show as heads-up notification
+        category: 'call', // High priority category
+        actions: [], // Clear any conflicting actions
+        
+        // Force display properties
+        alertAction: 'view',
+        hasAction: true,
+        
+        // Bypass Do Not Disturb
+        bypassDnd: true,
+        
+        // Additional Android properties
+        ticker: title, // Ticker text for accessibility
+        subText: 'DoKirana Order', // Subtitle
+        bigText: body, // Expanded text
+        
+        // Ensure it shows over other apps
+        showLights: true,
+        ledColor: '#FF6B35',
+        
+        // Wake screen properties
+        wakeScreen: true,
+        
+        // Group properties to prevent bundling
+        group: `order_${Date.now()}`,
+        groupSummary: false,
       };
       
-      console.log('=== SENDING BACKGROUND NOTIFICATION ===');
+      console.log('=== SENDING BACKGROUND NOTIFICATION WITH MAX PRIORITY ===');
       console.log('Config:', JSON.stringify(notificationConfig, null, 2));
       PushNotification.localNotification(notificationConfig);
       console.log('Background notification sent successfully');
@@ -330,7 +393,7 @@ class FCMService {
         title: title,
         message: body,
         playSound: true,
-        soundName: 'order_notification.mp3', // Custom ringtone
+        soundName: 'order_notification', // Custom ringtone (no extension)
         importance: 'high',
         vibrate: true,
         data: data || {},
@@ -387,6 +450,14 @@ class FCMService {
       await AsyncStorage.removeItem('fcmToken');
     } catch (error) {
       console.error('Failed to unregister FCM token:', error);
+    }
+  }
+
+  // Cleanup method to remove listeners
+  cleanup() {
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
     }
   }
 }

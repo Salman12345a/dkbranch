@@ -29,6 +29,7 @@ interface ExtendedOrder extends Order {
   customerName?: string;
   customerPhone?: string;
   totalPrice?: number;
+  branchConfirmedCollection?: boolean;
   customer?: {
     name?: string;
     phone?: string;
@@ -50,6 +51,7 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const [orderState, setOrderState] = useState(initialOrder as ExtendedOrder);
   const [payLaterLoading, setPayLaterLoading] = useState(false);
   const [payLaterStatus, setPayLaterStatus] = useState<'approved' | 'rejected' | null>(null);
+  const [completionLoading, setCompletionLoading] = useState(false);
 
   // Fetch latest order data on mount to ensure item details are present
   useEffect(() => {
@@ -126,6 +128,44 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       );
     } finally {
       setPayLaterLoading(false);
+    }
+  };
+
+  // Handle order completion
+  const handleCompleteOrder = async () => {
+    setCompletionLoading(true);
+    try {
+      const response = await api.patch(`/orders/${orderState._id}/complete`);
+      
+      if (response.data.status === 'SUCCESS') {
+        // Update order state to reflect completion
+        const updatedOrder = {
+          ...orderState,
+          status: 'packed',
+          branchConfirmedCollection: true
+        };
+        setOrderState(updatedOrder);
+        updateOrder(orderState._id, updatedOrder);
+        
+        Alert.alert(
+          'Success',
+          'Order has been marked as complete successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack()
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Order completion error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to complete the order. Please try again.'
+      );
+    } finally {
+      setCompletionLoading(false);
     }
   };
 
@@ -284,20 +324,24 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
         </View>
       )}
 
-      {/* Completed button - only show when manuallyCollected is true */}
-      {orderState.manuallyCollected && (
+      {/* Complete Order button - show when order is packed but not yet completed */}
+      {!orderState.branchConfirmedCollection && orderState.status === 'packed' && (
         <TouchableOpacity
-          style={styles.completedButton}
-          onPress={() => navigation.goBack()}>
+          style={[styles.completedButton, completionLoading && styles.completedButtonDisabled]}
+          onPress={handleCompleteOrder}
+          disabled={completionLoading}>
           <Icon
-            name="check"
+            name={completionLoading ? "hourglass-empty" : "check"}
             size={24}
             color="#FFFFFF"
             style={styles.buttonIcon}
           />
-          <Text style={styles.completedButtonText}>Completed</Text>
+          <Text style={styles.completedButtonText}>
+            {completionLoading ? 'Completing...' : 'Mark as Complete'}
+          </Text>
         </TouchableOpacity>
       )}
+
     </ScrollView>
   );
 };
@@ -637,6 +681,10 @@ const styles = StyleSheet.create({
   adContainer: {
     marginHorizontal: 0,
     marginVertical: 12,
+  },
+  completedButtonDisabled: {
+    backgroundColor: '#95a5a6',
+    opacity: 0.7,
   },
 });
 

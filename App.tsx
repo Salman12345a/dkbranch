@@ -91,8 +91,8 @@ const App = () => {
       // Handle navigation if needed
       if (navigationRef.current && remoteMessage.data?.orderId) {
         // Navigate to order details
-        navigationRef.current.navigate('OrderDetails', {
-          orderId: remoteMessage.data.orderId,
+        navigationRef.current.navigate('OrderDetail', {
+          order: {_id: remoteMessage.data.orderId},
         });
       }
     });
@@ -163,8 +163,8 @@ const App = () => {
               const initialNotification = JSON.parse(initialNotificationStr);
               if (initialNotification.data?.orderId) {
                 setTimeout(() => {
-                  navigationRef.current?.navigate('OrderDetails', {
-                    orderId: initialNotification.data.orderId,
+                  navigationRef.current?.navigate('OrderDetail', {
+                    order: {_id: initialNotification.data.orderId},
                   });
                 }, 1000); // Small delay to ensure navigation is ready
               }

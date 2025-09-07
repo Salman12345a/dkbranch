@@ -23,7 +23,7 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   );
 
   const pickupOrders = orders.filter(
-    o => o.status === 'packed' && !o.deliveryEnabled,
+    o => o.status === 'packed' && !o.deliveryEnabled && !o.branchConfirmedCollection,
   );
 
   // Add loading effect that simulates loading time

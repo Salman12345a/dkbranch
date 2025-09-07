@@ -30,6 +30,7 @@ export interface Order {
   createdAt: string;
   deliveryEnabled?: boolean;
   totalPrice?: number;
+  branchConfirmedCollection?: boolean;
   // Add other order properties as needed
 }
 
