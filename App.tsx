@@ -114,6 +114,10 @@ const App = () => {
     // Handle notification click when app is in background or terminated
     messaging().onNotificationOpenedApp(remoteMessage => {
       console.log('Notification opened app:', remoteMessage);
+      
+      // Clear all notifications when app is opened from notification
+      FCMService.clearAllNotifications();
+      
       // Handle navigation if needed
       if (navigationRef.current && remoteMessage.data?.orderId && typeof remoteMessage.data.orderId === 'string') {
         // Navigate to order details with proper order data
@@ -125,6 +129,10 @@ const App = () => {
     messaging().getInitialNotification().then(remoteMessage => {
       if (remoteMessage) {
         console.log('App opened from quit state by notification:', remoteMessage);
+        
+        // Clear all notifications when app is opened from quit state
+        FCMService.clearAllNotifications();
+        
         // We will navigate once the app is fully loaded
         // Store the notification data to use after login
         AsyncStorage.setItem('initialNotification', JSON.stringify(remoteMessage));

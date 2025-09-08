@@ -17,18 +17,20 @@ if (Platform.OS === 'android') {
 // Must be registered before registerComponent
 messaging().setBackgroundMessageHandler(async remoteMessage => {
   console.log('=== FCM BACKGROUND MESSAGE RECEIVED ===');
-  console.log('Message:', JSON.stringify(remoteMessage, null, 2));
+  console.log('Message ID:', remoteMessage.messageId);
   console.log('Has notification:', !!remoteMessage.notification);
   console.log('Has data:', !!remoteMessage.data);
-  console.log('Message ID:', remoteMessage.messageId);
-  console.log('From:', remoteMessage.from);
   
   try {
-    // Use the background notification method for proper handling
+    // Immediate background notification display for efficiency
     FCMService.displayBackgroundNotification(remoteMessage);
-    console.log('Background notification sent successfully');
+    console.log('[FCM] Background notification processed successfully');
+    
+    // Return promise to ensure proper handling
+    return Promise.resolve();
   } catch (err) {
-    console.error('Error in background handler:', err);
+    console.error('[FCM] Error in background handler:', err);
+    return Promise.reject(err);
   }
 });
 

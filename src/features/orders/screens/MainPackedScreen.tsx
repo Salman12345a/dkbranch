@@ -12,7 +12,7 @@ type OrderPackedScreenProps = StackScreenProps<
 
 const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
   const {orders} = useStore();
-  const [activeTab, setActiveTab] = useState<'delivery' | 'pickup'>('delivery');
+  const [activeTab, setActiveTab] = useState<'delivery' | 'pickup'>('pickup');
   const [isLoading, setIsLoading] = useState(true);
   const [isPickupLoading, setIsPickupLoading] = useState(true);
 
@@ -61,14 +61,14 @@ const MainPackedScreen: React.FC<OrderPackedScreenProps> = ({navigation}) => {
     <View style={styles.container}>
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          onPress={() => setActiveTab('delivery')}
-          style={[styles.tab, activeTab === 'delivery' && styles.activeTab]}>
-          <Text style={styles.tabText}>Delivery Service</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           onPress={() => setActiveTab('pickup')}
           style={[styles.tab, activeTab === 'pickup' && styles.activeTab]}>
           <Text style={styles.tabText}>Pickup</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setActiveTab('delivery')}
+          style={[styles.tab, activeTab === 'delivery' && styles.activeTab]}>
+          <Text style={styles.tabText}>Delivery Service</Text>
         </TouchableOpacity>
       </View>
       <FlatList

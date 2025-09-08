@@ -41,6 +41,8 @@ class FCMService {
 
   // Create notification channel for Android
   createNotificationChannel() {
+    console.log('[FCM] Creating notification channels for Android...');
+    
     // Create multiple channels for different types of notifications
     const channels = [
       {
@@ -48,13 +50,13 @@ class FCMService {
         channelName: 'Order Notifications',
         channelDescription: 'Notifications for new orders and updates',
         playSound: true,
-        soundName: 'order_notification', // Custom ringtone for orders (no extension)
-        importance: 5, // Maximum importance (IMPORTANCE_HIGH = 4, IMPORTANCE_MAX = 5)
+        soundName: 'default', // Use default sound for now to ensure notifications show
+        importance: 4, // IMPORTANCE_HIGH (Android 4 = high, 5 might cause issues)
         vibrate: true,
         showBadge: true,
-        bypassDnd: true, // Bypass Do Not Disturb
         lights: true,
         lightColor: '#FF6B35',
+        visibility: 1, // VISIBILITY_PUBLIC
       },
       {
         channelId: 'order_updates',
@@ -62,8 +64,9 @@ class FCMService {
         channelDescription: 'Notifications for order status changes',
         playSound: true,
         soundName: 'default',
-        importance: 3, // Default importance
+        importance: 4, // High importance
         vibrate: true,
+        showBadge: true,
       },
       {
         channelId: 'general',
@@ -71,15 +74,22 @@ class FCMService {
         channelDescription: 'General app notifications',
         playSound: true,
         soundName: 'default',
-        importance: 2, // Low importance
-        vibrate: false,
+        importance: 3, // Default importance
+        vibrate: true,
+        showBadge: true,
       }
     ];
 
     channels.forEach(channel => {
+      console.log(`[FCM] Creating channel: ${channel.channelId} with importance: ${channel.importance}`);
       PushNotification.createChannel(
         channel,
-        (created: boolean) => console.log(`Channel '${channel.channelId}' created: ${created}`)
+        (created: boolean) => {
+          console.log(`[FCM] Channel '${channel.channelId}' created: ${created}`);
+          if (!created) {
+            console.log(`[FCM] Channel '${channel.channelId}' already exists or failed to create`);
+          }
+        }
       );
     });
   }
@@ -300,15 +310,21 @@ class FCMService {
   // Setup app state monitoring to detect overlays
   setupAppStateMonitoring() {
     this.appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      console.log('App state changed from', this.appState, 'to', nextAppState);
+      console.log('[FCM] App state changed from', this.appState, 'to', nextAppState);
       
-      // Detect if app is covered by overlay (active but not visible)
-      if (this.appState === 'active' && nextAppState === 'background') {
+      // More robust app visibility detection
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
         this.isAppVisible = false;
-        console.log('App moved to background - notifications should use background handler');
+        console.log('[FCM] App not visible - background notifications enabled');
       } else if (nextAppState === 'active') {
-        this.isAppVisible = true;
-        console.log('App is now active and visible');
+        // Add a small delay to ensure app is truly active
+        setTimeout(() => {
+          this.isAppVisible = true;
+          console.log('[FCM] App is active and visible - foreground notifications enabled');
+          
+          // Clear all notifications when app becomes active
+          this.clearAllNotifications();
+        }, 100);
       }
       
       this.appState = nextAppState;
@@ -354,66 +370,48 @@ class FCMService {
     console.log('Using body:', body);
 
     try {
-      // Create a notification configuration object for background with maximum priority
+      // Simplified background notification config for better compatibility
       const notificationConfig = {
         channelId: 'orders',
         title: title,
         message: body,
         playSound: true,
-        soundName: 'order_notification', // Custom ringtone (no extension)
-        importance: 'max', // Maximum importance to bypass overlays
+        soundName: 'default', // Use default sound for reliability
+        importance: 'high', // High importance (avoid 'max' which might cause issues)
+        priority: 'high',
         vibrate: true,
         data: data || {},
         visibility: 'public',
-        priority: 'max', // Maximum priority
-        smallIcon: 'ic_notification', // Custom notification icon
-       
-        // Force notification to show even with overlays
-        ongoing: false,
-        autoCancel: true,
+        smallIcon: 'ic_notification',
         // Add unique ID to prevent overwriting
         id: Date.now(),
-        // Additional properties for background
-        userInteraction: false,
-        invokeApp: true,
-        // Custom notification styling
-        color: '#FF6B35', // Orange color for notification
+        // Essential properties for background display
+        ongoing: false,
+        autoCancel: true,
+        color: '#FF6B35',
         showWhen: true,
         when: Date.now(),
-        
-        // Android-specific properties to bypass overlays
-        fullScreenIntent: true, // Show as heads-up notification
-        category: 'call', // High priority category
-        actions: [], // Clear any conflicting actions
-        
-        // Force display properties
-        alertAction: 'view',
-        hasAction: true,
-        
-        // Bypass Do Not Disturb
-        bypassDnd: true,
-        
-        // Additional Android properties
-        ticker: title, // Ticker text for accessibility
-        subText: 'DoKirana Order', // Subtitle
-        bigText: body, // Expanded text
-        
-        // Ensure it shows over other apps
-        showLights: true,
-        ledColor: '#FF6B35',
-        
-        // Wake screen properties
+        userInteraction: false,
+        // Additional properties to ensure display
+        tag: `bg_order_${Date.now()}`, // Unique tag for background
+        group: 'orders',
+        allowWhileIdle: true,
+        // Wake screen for important notifications
         wakeScreen: true,
-        
-        // Group properties to prevent bundling
-        group: `order_${Date.now()}`,
-        groupSummary: false,
+        // Ticker text for accessibility
+        ticker: title,
+        subText: 'DoKirana Order',
       };
       
-      console.log('=== SENDING BACKGROUND NOTIFICATION WITH MAX PRIORITY ===');
+      console.log('=== SENDING BACKGROUND NOTIFICATION ===');
       console.log('Config:', JSON.stringify(notificationConfig, null, 2));
-      PushNotification.localNotification(notificationConfig);
-      console.log('Background notification sent successfully');
+      
+      // Use setTimeout to ensure notification is processed
+      setTimeout(() => {
+        PushNotification.localNotification(notificationConfig);
+        console.log('[FCM] Background notification sent successfully');
+      }, 100);
+      
     } catch (error) {
       console.error('Error displaying background notification:', error);
     }
@@ -435,40 +433,45 @@ class FCMService {
     console.log('Using body:', body);
 
     try {
-      // Create a notification configuration object
+      // Create a notification configuration object with simplified settings for better compatibility
       const notificationConfig = {
         channelId: 'orders',
         title: title,
         message: body,
         playSound: true,
-        soundName: 'order_notification', // Custom ringtone (no extension)
+        soundName: 'default', // Use default sound for reliability
         importance: 'high',
+        priority: 'high',
         vibrate: true,
         data: data || {},
-        // Add these properties to increase visibility
         visibility: 'public',
-        priority: 'high',
-        smallIcon: 'ic_notification', // Custom notification icon
-        largeIcon: 'https://storage.googleapis.com/dokirana-official/logo.png', // DoKirana logo
-        // Ensure notification shows even when app is in foreground
-        ignoreInForeground: false,
+        smallIcon: 'ic_notification',
         // Add unique ID to prevent overwriting
         id: Date.now(),
-        // Force show in foreground
-        userInteraction: false,
-        // Additional Android properties
+        // Essential Android properties for display
         ongoing: false,
         autoCancel: true,
-        // Custom notification styling
-        color: '#FF6B35', // Orange color for notification
+        color: '#FF6B35',
         showWhen: true,
         when: Date.now(),
+        // Force notification to show
+        ignoreInForeground: false,
+        userInteraction: false,
+        // Additional properties to ensure display
+        tag: `order_${Date.now()}`, // Unique tag
+        group: 'orders', // Group notifications
+        allowWhileIdle: true, // Allow while device is idle
       };
       
       console.log('=== SENDING LOCAL NOTIFICATION ===');
       console.log('Config:', JSON.stringify(notificationConfig, null, 2));
-      PushNotification.localNotification(notificationConfig);
-      console.log('Local notification sent successfully');
+      
+      // Use setTimeout to ensure notification is processed
+      setTimeout(() => {
+        PushNotification.localNotification(notificationConfig);
+        console.log('[FCM] Local notification sent successfully');
+      }, 100);
+      
     } catch (error) {
       console.error('Error displaying local notification:', error);
     }
@@ -526,9 +529,9 @@ class FCMService {
   // Check if FCM token needs re-registration (call this periodically)
   async checkTokenRegistrationStatus() {
     try {
-      const lastRegistered = await AsyncStorage.getItem('fcmTokenRegisteredAt');
       const currentTime = Date.now();
-      const oneDayMs = 24 * 60 * 60 * 1000;
+      const oneDayMs = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      const lastRegistered = await AsyncStorage.getItem('fcm_last_registered');
       
       // Re-register token if it's been more than 24 hours or never registered
       if (!lastRegistered || (currentTime - parseInt(lastRegistered)) > oneDayMs) {
@@ -538,6 +541,62 @@ class FCMService {
     } catch (error) {
       console.error('Error checking FCM token registration status:', error);
     }
+  }
+
+  // Clear all notifications from notification bar
+  clearAllNotifications() {
+    console.log('[FCM] Clearing all notifications from notification bar...');
+    try {
+      PushNotification.cancelAllLocalNotifications();
+      console.log('[FCM] All notifications cleared successfully');
+    } catch (error) {
+      console.error('[FCM] Error clearing notifications:', error);
+    }
+  }
+
+  // Clear notifications by tag/group
+  clearNotificationsByTag(tag: string) {
+    console.log(`[FCM] Clearing notifications with tag: ${tag}`);
+    try {
+      PushNotification.cancelLocalNotifications({ tag });
+      console.log(`[FCM] Notifications with tag ${tag} cleared`);
+    } catch (error) {
+      console.error(`[FCM] Error clearing notifications with tag ${tag}:`, error);
+    }
+  }
+
+  // Test notification display (for debugging)
+  testNotification() {
+    console.log('[FCM] Testing notification display...');
+    
+    const testConfig = {
+      channelId: 'orders',
+      title: 'Test Notification',
+      message: 'This is a test notification to verify display functionality',
+      playSound: true,
+      soundName: 'default',
+      importance: 'high',
+      priority: 'high',
+      vibrate: true,
+      visibility: 'public',
+      smallIcon: 'ic_notification',
+      id: Date.now(),
+      ongoing: false,
+      autoCancel: true,
+      color: '#FF6B35',
+      showWhen: true,
+      when: Date.now(),
+      tag: `test_${Date.now()}`,
+      group: 'orders',
+      allowWhileIdle: true,
+    };
+    
+    console.log('[FCM] Test notification config:', JSON.stringify(testConfig, null, 2));
+    
+    setTimeout(() => {
+      PushNotification.localNotification(testConfig);
+      console.log('[FCM] Test notification sent');
+    }, 100);
   }
 
   // Cleanup method to remove listeners
