@@ -24,6 +24,7 @@ import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-pick
 import ImageResizer from 'react-native-image-resizer';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Picker } from '@react-native-picker/picker';
+import { PERMISSIONS, request, RESULTS, check } from 'react-native-permissions';
 
 type CustomProductsRouteProp = RouteProp<RootStackParamList, 'CustomProducts'>;
 
@@ -97,13 +98,53 @@ const CustomProducts = () => {
     );
   };
 
+  const requestCameraPermission = async () => {
+    try {
+      const permission = Platform.OS === 'ios' 
+        ? PERMISSIONS.IOS.CAMERA 
+        : PERMISSIONS.ANDROID.CAMERA;
+      
+      const result = await request(permission);
+      return result === RESULTS.GRANTED;
+    } catch (error) {
+      console.error('Permission request error:', error);
+      return false;
+    }
+  };
+
   const openCamera = async () => {
     try {
+      // Check and request camera permission
+      const hasPermission = await requestCameraPermission();
+      
+      if (!hasPermission) {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please allow camera access to take photos for your products.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Settings', 
+              onPress: () => {
+                // On Android, user needs to manually enable in settings
+                Alert.alert(
+                  'Enable Camera Permission',
+                  'Go to Settings > Apps > SyncMart > Permissions > Camera and enable it.',
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          ]
+        );
+        return;
+      }
+
       const result = await launchCamera({
         mediaType: 'photo',
         quality: 0.5,
         saveToPhotos: true,
       });
+      
       if (!result.didCancel && result.assets && result.assets.length > 0) {
         const compressed = await compressImage(result.assets[0]);
         setImage(compressed);
