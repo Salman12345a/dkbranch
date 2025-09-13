@@ -10,9 +10,11 @@ import {
   Image,
   Platform,
   ToastAndroid,
+  ActionSheetIOS,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import {launchImageLibrary} from 'react-native-image-picker';
+import {launchImageLibrary, launchCamera} from 'react-native-image-picker';
+import {PERMISSIONS, request, RESULTS, check} from 'react-native-permissions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageResizer from 'react-native-image-resizer';
 import {StackNavigationProp} from '@react-navigation/stack';
@@ -149,24 +151,61 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
     }
   };
 
-  const pickImage = useCallback(async (type: keyof typeof files) => {
+  const requestCameraPermission = async (): Promise<boolean> => {
     try {
-      const result = await launchImageLibrary({
+      const permission = Platform.OS === 'ios' 
+        ? PERMISSIONS.IOS.CAMERA 
+        : PERMISSIONS.ANDROID.CAMERA;
+      
+      const result = await request(permission);
+      
+      if (result === RESULTS.GRANTED) {
+        return true;
+      } else if (result === RESULTS.DENIED || result === RESULTS.BLOCKED) {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please enable camera permission in your device settings to take photos.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => {
+              // On Android, you might want to open settings
+              if (Platform.OS === 'android') {
+                ToastAndroid.show('Please enable camera permission in Settings > Apps > SyncMart > Permissions', ToastAndroid.LONG);
+              }
+            }}
+          ]
+        );
+        return false;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error requesting camera permission:', error);
+      return false;
+    }
+  };
+
+  const openCamera = async (type: keyof typeof files) => {
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) {
+      return;
+    }
+
+    try {
+      const result = await launchCamera({
         mediaType: 'photo',
-        quality: 0.5, // Lower initial quality
+        quality: 0.5,
         maxWidth: 1200,
         maxHeight: 1200,
+        includeBase64: false,
       });
 
       if (!result.didCancel && result.assets && result.assets.length > 0) {
         const originalAsset = result.assets[0];
         
-        // Show loading or processing indicator
         if (Platform.OS === 'android') {
           ToastAndroid.show('Processing image...', ToastAndroid.SHORT);
         }
         
-        // Further compress the image
         const compressedAsset = await compressAndResizeImage(
           originalAsset.uri || '',
           originalAsset.type || 'image/jpeg'
@@ -178,9 +217,77 @@ const UploadBranchDocs: React.FC<UploadBranchDocsProps> = ({
         }));
       }
     } catch (error) {
-      Alert.alert('Error', `Failed to pick or process ${type}`);
-      console.error(`Error picking/processing ${type}:`, error);
+      Alert.alert('Error', `Failed to take photo for ${type}`);
+      console.error(`Error taking photo for ${type}:`, error);
     }
+  };
+
+  const openGallery = async (type: keyof typeof files) => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.5,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      });
+
+      if (!result.didCancel && result.assets && result.assets.length > 0) {
+        const originalAsset = result.assets[0];
+        
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Processing image...', ToastAndroid.SHORT);
+        }
+        
+        const compressedAsset = await compressAndResizeImage(
+          originalAsset.uri || '',
+          originalAsset.type || 'image/jpeg'
+        );
+
+        setFiles(prev => ({
+          ...prev,
+          [type]: compressedAsset,
+        }));
+      }
+    } catch (error) {
+      Alert.alert('Error', `Failed to pick image from gallery for ${type}`);
+      console.error(`Error picking image from gallery for ${type}:`, error);
+    }
+  };
+
+  const showImagePickerOptions = (type: keyof typeof files) => {
+    const options = ['Take Photo', 'Choose from Gallery', 'Cancel'];
+    const cancelButtonIndex = 2;
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex,
+          title: 'Select Image Source',
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) {
+            openCamera(type);
+          } else if (buttonIndex === 1) {
+            openGallery(type);
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Select Image Source',
+        'Choose how you want to add the image',
+        [
+          { text: 'Take Photo', onPress: () => openCamera(type) },
+          { text: 'Choose from Gallery', onPress: () => openGallery(type) },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
+  const pickImage = useCallback(async (type: keyof typeof files) => {
+    showImagePickerOptions(type);
   }, []);
 
   const handleSubmit = useCallback(async () => {
