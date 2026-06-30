@@ -114,10 +114,19 @@ class OrderSocketService : Service() {
         // Create notification channel first
         createNotificationChannel()
         
-        // Start in foreground immediately with a default notification
-        startForeground(NOTIFICATION_ID, createNotification("Listening for new orders - Initializing"))
+        // Start in foreground immediately — include foregroundServiceType for Android 10+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                createNotification("Listening for new orders - Initializing"),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification("Listening for new orders - Initializing"))
+        }
         
         Log.d(TAG, "Started foreground service with notification: Listening for new orders - Initializing")
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -452,32 +461,27 @@ class OrderSocketService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Delete any existing channel first to ensure settings are updated
-            try {
-                val manager = getSystemService(NotificationManager::class.java)
-                manager.deleteNotificationChannel(CHANNEL_ID)
-                Log.d(TAG, "Deleted existing notification channel")
-            } catch (e: Exception) {
-                // Channel might not exist yet, that's fine
+            val manager = getSystemService(NotificationManager::class.java)
+            // Only create if it doesn't already exist — createNotificationChannel is idempotent.
+            // Deleting the channel would reset user-controlled notification settings.
+            if (manager.getNotificationChannel(CHANNEL_ID) != null) {
+                Log.d(TAG, "Notification channel '$CHANNEL_ID' already exists, skipping creation.")
+                return
             }
             
-            // Create a new channel with higher importance
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
                 "Order Service Channel",
-                NotificationManager.IMPORTANCE_HIGH // High importance to ensure it's visible
+                NotificationManager.IMPORTANCE_DEFAULT // Use DEFAULT so it doesn't intrude as heads-up
             )
-            // Configure channel properties
             serviceChannel.description = "Shows when the order notification service is active and receiving real-time updates"
-            serviceChannel.setShowBadge(true)         // Show badge on launcher icon
-            serviceChannel.enableLights(true)         // Enable lights for more visibility
-            serviceChannel.lightColor = android.graphics.Color.BLUE
+            serviceChannel.setShowBadge(false)         // No badge for persistent service notification
+            serviceChannel.enableLights(false)
             serviceChannel.enableVibration(false)
             serviceChannel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             
-            val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
-            Log.i(TAG, "Created/Verified notification channel '$CHANNEL_ID' with HIGH importance.")
+            Log.i(TAG, "Created notification channel '$CHANNEL_ID'.")
         }
     }
 

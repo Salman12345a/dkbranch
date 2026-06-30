@@ -13,16 +13,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
-    private val database = AppDatabase.getInstance(reactContext)
-    private val encryptedPrefsManager = EncryptedSharedPreferencesManager(reactContext)
-    private val socketManager = OrderSocketManager(database, encryptedPrefsManager)
+    // Use lazy to defer heavy I/O initialization off the main thread
+    private val database by lazy { AppDatabase.getInstance(reactContext) }
+    private val encryptedPrefsManager by lazy { EncryptedSharedPreferencesManager(reactContext) }
+    private val socketManager by lazy { OrderSocketManager(database, encryptedPrefsManager) }
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    init {
-        socketManager.setEventEmitter { eventName, params ->
-            sendEvent(eventName, params)
-        }
-    }
+    // Event emitter setup deferred to first use via lazy socketManager
 
     override fun getName() = "OrderSocketModule"
 
@@ -42,39 +39,37 @@ class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBas
     fun connect(branchId: String, token: String, promise: Promise) {
         try {
             encryptedPrefsManager.saveCredentials(reactApplicationContext, branchId, token)
-            // When connecting, assume store should be open by default or respect last known state.
-            // For simplicity now, let's ensure it's marked as open for service start.
             encryptedPrefsManager.saveStoreStatus(reactApplicationContext, true)
 
-            // Configure socket manager first
+            // Wire up event emitter on first use (socketManager is lazy)
+            socketManager.setEventEmitter { eventName, params ->
+                sendEvent(eventName, params)
+            }
+
+            // Configure socket manager context and URL
             socketManager.setContext(reactApplicationContext)
-            
-            // Get socket URL from preferences or use default production URL
-            val socketUrl = "https://dokirana.el.r.appspot.com/"
-            socketManager.setSocketServerUrl(socketUrl)
-            
-            // Start the service with all required parameters
+            socketManager.setSocketServerUrl(SOCKET_SERVER_URL)
+
+            // Build service intent with all required extras
             val serviceIntent = Intent(reactApplicationContext, OrderSocketService::class.java).apply {
                 putExtra("branchId", branchId)
                 putExtra("token", token)
-                putExtra("socketUrl", socketUrl)
-                // Flag indicating service was started by user action, not boot
+                putExtra("socketUrl", SOCKET_SERVER_URL)
                 putExtra("started_from_boot", false)
             }
-            
-            // Start or restart service
-            reactApplicationContext.stopService(serviceIntent) // Stop if already running
+
+            // Stop any existing instance before starting a fresh one
+            reactApplicationContext.stopService(serviceIntent)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            reactApplicationContext.startForegroundService(serviceIntent)
-        } else {
-            reactApplicationContext.startService(serviceIntent)
-        }
-            
-            // Also connect manager if needed (it will be connected by the service)
-            if (!socketManager.isConnected()) {
-                socketManager.connect(branchId, token)
+                reactApplicationContext.startForegroundService(serviceIntent)
+            } else {
+                reactApplicationContext.startService(serviceIntent)
             }
-            
+
+            // Note: Do NOT call socketManager.connect() here.
+            // The OrderSocketService.onStartCommand() calls it after the service is started,
+            // preventing duplicate WebSocket connections.
+
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject("CONNECT_ERROR", e.message, e)
@@ -155,6 +150,30 @@ class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBas
     }
 
     @ReactMethod
+    fun getRecentOrders(branchId: String, promise: Promise) {
+        scope.launch {
+            try {
+                val orderList = database.orderDao().getOrdersForBranch(branchId).first()
+                val result = Arguments.createArray()
+                orderList.forEach { order ->
+                    val orderMap = Arguments.createMap().apply {
+                        putString("orderId", order.orderId)
+                        putString("branchId", order.branchId)
+                        putString("orderData", order.orderData)
+                        putString("status", order.status)
+                        putDouble("createdAt", order.createdAt.toDouble())
+                        putDouble("updatedAt", order.updatedAt.toDouble())
+                    }
+                    result.pushMap(orderMap)
+                }
+                promise.resolve(result)
+            } catch (e: Exception) {
+                promise.reject("GET_RECENT_ORDERS_ERROR", "Error fetching recent orders: ${e.message}", e)
+            }
+        }
+    }
+
+    @ReactMethod
     fun getPersistedOrders(promise: Promise) {
         scope.launch {
             try {
@@ -200,4 +219,10 @@ class OrderSocketModule(reactContext: ReactApplicationContext) : ReactContextBas
     fun removeListeners(count: Int) {
         // Keep: Required for RN built in Event Emitter Calls.
     }
-}
+
+    companion object {
+        // Single source of truth for the WebSocket server URL in native code.
+        // The JS side sets this via setApiBaseUrl(); keep in sync with src/config.ts SOCKET_URL.
+        private const val SOCKET_SERVER_URL = "https://dokirana.el.r.appspot.com/"
+    }
+}

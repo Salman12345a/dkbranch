@@ -16,13 +16,35 @@ type TermsConditionsScreenProps = {
   navigation: DrawerNavigationProp<DrawerParamList, 'TermsConditions'>;
 };
 
+const termsHtmlContent = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: Arial, sans-serif; padding: 16px; line-height: 1.6; color: #222; }
+      h1 { font-size: 20px; margin-bottom: 8px; }
+      p { margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Terms & Conditions</h1>
+    <p>Welcome to DoKirana. By using this app, you agree to use it responsibly and keep your account information secure.</p>
+    <p>We may update these terms from time to time. Continued use of the app after any updates means you accept the revised terms.</p>
+    <p>For any questions, please contact our support team through the app or our official contact details.</p>
+  </body>
+</html>`;
+
 const TermsConditionsScreen: React.FC<TermsConditionsScreenProps> = ({
   navigation,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
+  const [useFallbackHtml, setUseFallbackHtml] = useState(false);
 
-  // URL for your terms and conditions - replace with your actual URL
-  const termsConditionsUrl = 'https://dokirana.com/branch/terms';
+  const termsConditionsUrl = 'https://do-kirana-website.vercel.app/branch/terms';
+  const webViewSource = useFallbackHtml
+    ? {html: termsHtmlContent}
+    : {uri: termsConditionsUrl};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -43,10 +65,12 @@ const TermsConditionsScreen: React.FC<TermsConditionsScreenProps> = ({
           </View>
         )}
         <WebView
-          source={{uri: termsConditionsUrl}}
+          source={webViewSource}
           style={styles.webview}
           onLoadStart={() => setIsLoading(true)}
           onLoadEnd={() => setIsLoading(false)}
+          onError={() => setUseFallbackHtml(true)}
+          onHttpError={() => setUseFallbackHtml(true)}
         />
       </View>
     </SafeAreaView>

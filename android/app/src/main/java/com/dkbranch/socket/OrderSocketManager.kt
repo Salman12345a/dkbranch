@@ -22,7 +22,8 @@ import java.util.concurrent.TimeUnit
 
 class OrderSocketManager(private val database: AppDatabase, private val encryptedPrefsManager: EncryptedSharedPreferencesManager) {
     private var webSocket: WebSocket? = null
-    private lateinit var context: Context
+    // Changed from lateinit to nullable — prevents UninitializedPropertyAccessException on boot-restart
+    private var context: Context? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val WAKE_LOCK_TAG = "OrderSocketManager::WakeLock"
     
@@ -172,14 +173,14 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
 
     fun connect(branchId: String, token: String) {
         Log.i(TAG, "connect() called with branchId: $branchId, token: ${token.take(10)}...")
-        if (!::context.isInitialized) {
+        if (context == null) {
             Log.e(TAG, "Context not set. Call setContext() before connecting.")
             eventEmitter?.invoke("error", Arguments.createMap().apply { putString("message", "Context not set in OrderSocketManager") })
             return
         }
 
         // Check store status before connecting
-        if (!encryptedPrefsManager.getStoreStatus(context)) {
+        if (!encryptedPrefsManager.getStoreStatus(context!!)) {
             Log.i(TAG, "Store is closed. Socket connection not initiated.")
             eventEmitter?.invoke("error", Arguments.createMap().apply { putString("message", "Store is closed. Cannot connect socket.") })
             return
@@ -418,10 +419,8 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
     // Send custom ping to keep connection alive
     // Helper to get branchId from token (assuming it's stored in token)
     private fun getBranchIdFromToken(): String? {
-        // This is a placeholder. Implement actual logic to decode token if branchId is part of JWT
-        // Or retrieve it from a reliable source if not in token.
-        // For now, trying to get it from shared preferences as a fallback.
-        return encryptedPrefsManager.getBranchId(context)
+        val ctx = context ?: return null
+        return encryptedPrefsManager.getBranchId(ctx)
     }
 
     private fun sendKeepAlivePing() {
@@ -446,30 +445,34 @@ class OrderSocketManager(private val database: AppDatabase, private val encrypte
     }
 
     private fun handleReconnection(branchId: String) {
-        if (reconnectAttempts < maxReconnectAttempts) {
-            reconnectAttempts++
-            val delayTime = minOf(reconnectAttempts * 1000L, 30000L) // Cap at 30 seconds max delay
-            
-            Log.d(TAG, "Scheduling reconnection attempt $reconnectAttempts after $delayTime ms")
-            
-            connectionJob?.cancel() // Cancel any existing job
-            connectionJob = scope.launch {
+        if (reconnectAttempts >= maxReconnectAttempts) {
+            Log.e(TAG, "Max reconnection attempts ($maxReconnectAttempts) reached, giving up")
+            releaseWakeLock()
+            return
+        }
+
+        reconnectAttempts++
+        // Exponential backoff: 1s, 2s, 4s … capped at 30s
+        val delayTime = minOf(reconnectAttempts * 1000L, 30000L)
+        Log.d(TAG, "Scheduling reconnection attempt $reconnectAttempts after ${delayTime}ms")
+
+        connectionJob?.cancel()
+        connectionJob = scope.launch {
+            delay(delayTime)
+            if (!isActive) return@launch
+
+            if (isNetworkAvailable()) {
+                Log.d(TAG, "Network available, attempting reconnection")
+                currentToken?.let { token -> connect(branchId, token) }
+            } else {
+                Log.d(TAG, "Network still unavailable at attempt $reconnectAttempts, scheduling next attempt")
+                // Don't recurse — just schedule via a new delayed coroutine
                 delay(delayTime)
-                
-                // Check if network is available before attempting reconnection
-                if (isNetworkAvailable()) {
-                    Log.d(TAG, "Network available, attempting reconnection")
-                    currentToken?.let { token ->
-                        connect(branchId, token)
-                    }
-                } else {
-                    Log.d(TAG, "Network still unavailable, will retry later")
-                    handleReconnection(branchId) // Try again later
+                if (isActive && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++
+                    currentToken?.let { token -> connect(branchId, token) }
                 }
             }
-        } else {
-            Log.e(TAG, "Max reconnection attempts reached, giving up")
-            releaseWakeLock() // Release wake lock after max attempts
         }
     }
 
