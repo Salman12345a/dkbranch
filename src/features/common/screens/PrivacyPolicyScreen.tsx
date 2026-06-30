@@ -16,13 +16,35 @@ type PrivacyPolicyScreenProps = {
   navigation: DrawerNavigationProp<DrawerParamList, 'PrivacyPolicy'>;
 };
 
+const privacyPolicyHtmlContent = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: Arial, sans-serif; padding: 16px; line-height: 1.6; color: #222; }
+      h1 { font-size: 20px; margin-bottom: 8px; }
+      p { margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Privacy Policy</h1>
+    <p>We collect only the information necessary to provide and improve the DoKirana experience.</p>
+    <p>Your data is stored securely and used to process orders, support the app, and improve service quality.</p>
+    <p>You may contact us at any time if you have questions about your personal information.</p>
+  </body>
+</html>`;
+
 const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({
   navigation,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
+  const [useFallbackHtml, setUseFallbackHtml] = useState(false);
 
-  // URL for your privacy policy - replace with your actual URL
-  const privacyPolicyUrl = 'https://dokirana.com/branch/privacy-policy';
+  const privacyPolicyUrl = 'https://do-kirana-website.vercel.app/branch/privacy-policy';
+  const webViewSource = useFallbackHtml
+    ? {html: privacyPolicyHtmlContent}
+    : {uri: privacyPolicyUrl};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -43,10 +65,12 @@ const PrivacyPolicyScreen: React.FC<PrivacyPolicyScreenProps> = ({
           </View>
         )}
         <WebView
-          source={{uri: privacyPolicyUrl}}
+          source={webViewSource}
           style={styles.webview}
           onLoadStart={() => setIsLoading(true)}
           onLoadEnd={() => setIsLoading(false)}
+          onError={() => setUseFallbackHtml(true)}
+          onHttpError={() => setUseFallbackHtml(true)}
         />
       </View>
     </SafeAreaView>

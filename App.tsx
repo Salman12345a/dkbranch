@@ -12,6 +12,7 @@ import {
   OrderSocketEventEmitter,
   OrderSocketEvents,
 } from './src/native/OrderSocket';
+import {storage} from './src/utils/storage';
 import NetworkAlert from './src/components/common/NetworkAlert';
 import {config} from './src/config';
 import FCMService from './src/services/FCMService';
@@ -145,8 +146,10 @@ const App = () => {
 
     const restoreUserId = async () => {
       try {
-        const storedBranchId = await AsyncStorage.getItem('branchId');
-        const token = await AsyncStorage.getItem('accessToken');
+        // Read auth credentials from MMKV — this is where api.ts writes them on login.
+        // Previously was using AsyncStorage which is a different storage layer.
+        const storedBranchId = storage.getString('userId') || storage.getString('branchId');
+        const token = storage.getString('accessToken');
 
         if (storedBranchId && token && !userId) {
           setUserId(storedBranchId as string);

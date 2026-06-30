@@ -1,10 +1,16 @@
 import messaging from '@react-native-firebase/messaging';
 import { Platform, AppState, AppStateStatus } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { config } from '../config';
 import { storage } from '../utils/storage';
 import PushNotification from 'react-native-push-notification';
+
+// FCM token keys — all stored in MMKV for consistency with the rest of the app
+const FCM_KEY_TOKEN = 'fcmToken';
+const FCM_KEY_PENDING = 'pendingFCMToken';
+const FCM_KEY_REGISTERED_AT = 'fcmTokenRegisteredAt';
+const FCM_KEY_LAST_REGISTERED = 'fcm_last_registered';
+
 
 class FCMService {
   private appState: AppStateStatus = 'active';
@@ -169,10 +175,8 @@ class FCMService {
     try {
       const fcmToken = await messaging().getToken();
       console.log('FCM Token:', fcmToken);
-
-      // Store token locally
-      await AsyncStorage.setItem('fcmToken', fcmToken);
-
+      // Store token in MMKV (same storage as auth tokens)
+      storage.set(FCM_KEY_TOKEN, fcmToken);
       return fcmToken;
     } catch (error) {
       console.error('FCM token retrieval error:', error);
@@ -198,10 +202,8 @@ class FCMService {
   onTokenRefresh() {
     messaging().onTokenRefresh(async (fcmToken) => {
       console.log('FCM Token refreshed:', fcmToken);
-      
-      // Store refreshed token
-      await AsyncStorage.setItem('fcmToken', fcmToken);
-      
+      // Store refreshed token in MMKV
+      storage.set(FCM_KEY_TOKEN, fcmToken);
       // Register refreshed token with backend
       await this.registerTokenWithBackend(fcmToken);
     });
@@ -210,7 +212,7 @@ class FCMService {
   // Register token with backend
   async registerTokenWithBackend(token: string) {
     try {
-      // Use MMKV storage to match the app's storage system
+      // Read all credentials from MMKV (single storage source)
       let userId = storage.getString('branchId');
       if (!userId) {
         userId = storage.getString('userId');
@@ -220,25 +222,23 @@ class FCMService {
       console.log('=== FCM TOKEN REGISTRATION ATTEMPT ===');
       console.log('FCM Registration - userId:', userId, 'hasToken:', !!authToken);
       console.log('FCM Registration - token length:', token?.length);
-      console.log('FCM Registration - endpoint:', `${config.BASE_URL}/device-tokens/register`);
       
       if (!userId || !authToken) {
-        console.log('User not logged in, storing token for later registration');
-        // Store token for later registration when user logs in
-        await AsyncStorage.setItem('pendingFCMToken', token);
+        console.log('User not logged in, storing FCM token in MMKV for later registration');
+        storage.set(FCM_KEY_PENDING, token);
         return false;
       }
 
       // Clear any pending token since we're about to register
-      await AsyncStorage.removeItem('pendingFCMToken');
+      storage.delete(FCM_KEY_PENDING);
 
       const requestPayload = {
         token,
         platform: Platform.OS,
-        userId: userId, // Include userId in payload for better backend tracking
+        userId,
       };
       
-      console.log('FCM Registration - request payload:', JSON.stringify(requestPayload, null, 2));
+      console.log('FCM Registration - endpoint:', `${config.BASE_URL}/device-tokens/register`);
 
       const response = await axios.post(
         `${config.BASE_URL}/device-tokens/register`,
@@ -248,36 +248,23 @@ class FCMService {
             Authorization: `Bearer ${authToken}`,
             'Content-Type': 'application/json',
           },
-          timeout: 10000, // 10 second timeout
+          timeout: 10000,
         }
       );
       
-      console.log('=== FCM TOKEN REGISTRATION SUCCESS ===');
-      console.log('Response status:', response.status);
-      console.log('Response data:', response.data);
-      
-      // Store successful registration timestamp
-      await AsyncStorage.setItem('fcmTokenRegisteredAt', Date.now().toString());
+      console.log('=== FCM TOKEN REGISTRATION SUCCESS === status:', response.status);
+      // Store registration timestamp in MMKV
+      storage.set(FCM_KEY_REGISTERED_AT, Date.now().toString());
       return true;
     } catch (error: any) {
-      console.error('=== FCM TOKEN REGISTRATION FAILED ===');
-      console.error('Error details:', {
+      console.error('=== FCM TOKEN REGISTRATION FAILED ===', {
         message: error?.message,
         status: error?.response?.status,
-        statusText: error?.response?.statusText,
-        data: error?.response?.data,
         code: error?.code,
-        config: {
-          url: error?.config?.url,
-          method: error?.config?.method,
-          headers: error?.config?.headers,
-        }
       });
-      
-      // If it's a network error, store token for retry
+      // Store pending token for retry on network errors
       if (error?.code === 'NETWORK_ERROR' || error?.code === 'ECONNABORTED') {
-        console.log('Network error detected, storing token for retry');
-        await AsyncStorage.setItem('pendingFCMToken', token);
+        storage.set(FCM_KEY_PENDING, token);
       }
       return false;
     }
@@ -286,10 +273,10 @@ class FCMService {
   // Register FCM token after authentication is confirmed
   async registerTokenAfterAuth() {
     try {
-      // Check for pending token first (in case registration failed during init)
-      let fcmToken = await AsyncStorage.getItem('pendingFCMToken');
+      // Check MMKV for pending token first (in case registration failed during init)
+      let fcmToken = storage.getString(FCM_KEY_PENDING);
       if (!fcmToken) {
-        fcmToken = await AsyncStorage.getItem('fcmToken');
+        fcmToken = storage.getString(FCM_KEY_TOKEN) ?? null;
       }
       
       if (fcmToken) {
@@ -299,7 +286,7 @@ class FCMService {
           console.log('FCM token registration failed, will retry later');
         }
       } else {
-        console.log('No FCM token found, getting new token after authentication');
+        console.log('No FCM token found in MMKV, getting new token after authentication');
         await this.getFCMTokenAndRegister();
       }
     } catch (error) {
@@ -480,37 +467,40 @@ class FCMService {
   // Unregister token when logging out
   async unregisterToken() {
     try {
-      const fcmToken = await AsyncStorage.getItem('fcmToken');
-      const authToken = storage.getString('accessToken'); // Use MMKV storage
+      const fcmToken = storage.getString(FCM_KEY_TOKEN);
+      const authToken = storage.getString('accessToken');
       
       if (fcmToken && authToken) {
         await axios.post(
-          `${config.BASE_URL}/device-tokens/unregister`, // Match the registration endpoint pattern
+          `${config.BASE_URL}/device-tokens/unregister`,
           { token: fcmToken },
           {
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-            },
-            timeout: 5000, // 5 second timeout for logout
+            headers: { Authorization: `Bearer ${authToken}` },
+            timeout: 5000,
           }
         );
-        
         console.log('FCM token unregistered successfully');
       }
       
-      // Clear all FCM related data from AsyncStorage
-      await AsyncStorage.multiRemove(['fcmToken', 'pendingFCMToken', 'fcmTokenRegisteredAt']);
+      // Clear all FCM related data from MMKV
+      storage.delete(FCM_KEY_TOKEN);
+      storage.delete(FCM_KEY_PENDING);
+      storage.delete(FCM_KEY_REGISTERED_AT);
+      storage.delete(FCM_KEY_LAST_REGISTERED);
     } catch (error) {
       console.error('Failed to unregister FCM token:', error);
       // Still clear local tokens even if unregistration fails
-      await AsyncStorage.multiRemove(['fcmToken', 'pendingFCMToken', 'fcmTokenRegisteredAt']);
+      storage.delete(FCM_KEY_TOKEN);
+      storage.delete(FCM_KEY_PENDING);
+      storage.delete(FCM_KEY_REGISTERED_AT);
+      storage.delete(FCM_KEY_LAST_REGISTERED);
     }
   }
 
   // Retry pending FCM token registration
   async retryPendingTokenRegistration() {
     try {
-      const pendingToken = await AsyncStorage.getItem('pendingFCMToken');
+      const pendingToken = storage.getString(FCM_KEY_PENDING);
       if (pendingToken) {
         console.log('Retrying pending FCM token registration');
         const success = await this.registerTokenWithBackend(pendingToken);
@@ -530,13 +520,14 @@ class FCMService {
   async checkTokenRegistrationStatus() {
     try {
       const currentTime = Date.now();
-      const oneDayMs = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-      const lastRegistered = await AsyncStorage.getItem('fcm_last_registered');
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const lastRegistered = storage.getString(FCM_KEY_LAST_REGISTERED);
       
-      // Re-register token if it's been more than 24 hours or never registered
-      if (!lastRegistered || (currentTime - parseInt(lastRegistered)) > oneDayMs) {
+      if (!lastRegistered || (currentTime - parseInt(lastRegistered, 10)) > oneDayMs) {
         console.log('FCM token needs re-registration');
         await this.registerTokenAfterAuth();
+        // Update last-registered timestamp
+        storage.set(FCM_KEY_LAST_REGISTERED, currentTime.toString());
       }
     } catch (error) {
       console.error('Error checking FCM token registration status:', error);

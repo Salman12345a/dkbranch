@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import {StackScreenProps} from '@react-navigation/stack';
 import {RootStackParamList} from '../../../navigation/AppNavigator';
@@ -47,25 +48,61 @@ interface ExtendedOrder extends Order {
 
 const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
   const {order: initialOrder} = route.params;
-  const {updateOrder, addWalletTransaction} = useStore();
+  const {updateOrder} = useStore();
   const [orderState, setOrderState] = useState(initialOrder as ExtendedOrder);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [payLaterLoading, setPayLaterLoading] = useState(false);
   const [payLaterStatus, setPayLaterStatus] = useState<'approved' | 'rejected' | null>(null);
   const [completionLoading, setCompletionLoading] = useState(false);
 
   // Fetch latest order data on mount to ensure item details are present
   useEffect(() => {
+    let isActive = true;
+
     const fetchOrderDetails = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+
       try {
-        const response = await api.get(`/orders/${initialOrder._id}`);
+        const response = await api.get(`/orders/${initialOrder._id}`, {
+          timeout: 15000,
+        });
+
+        if (!response.data || !Array.isArray(response.data.items)) {
+          throw new Error('The order details response is incomplete.');
+        }
+
+        if (!isActive) {
+          return;
+        }
+
         setOrderState(response.data as ExtendedOrder);
         updateOrder(initialOrder._id, response.data);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Fetch Order Error:', error);
+
+        if (isActive) {
+          setLoadError(
+            error?.code === 'ECONNABORTED'
+              ? 'The request timed out. Please check your connection and try again.'
+              : 'Unable to load the latest order details. Please check your connection and try again.',
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
       }
     };
+
     fetchOrderDetails();
-  }, [initialOrder._id, updateOrder]);
+
+    return () => {
+      isActive = false;
+    };
+  }, [initialOrder._id, reloadKey, updateOrder]);
 
   // Calculate order totals without any platform charges
   const orderCalculations = useMemo(() => {
@@ -81,6 +118,34 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
       isPickupOrder,
     };
   }, [orderState.totalPrice, orderState.deliveryEnabled]);
+
+  // Keep all hooks above conditional returns so their order never changes.
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#5E60CE" />
+        <Text style={styles.loadingText}>Loading order details...</Text>
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Icon name="cloud-off" size={44} color="#e74c3c" />
+        <Text style={styles.errorTitle}>Could not load order</Text>
+        <Text style={styles.errorText}>{loadError}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => setReloadKey(key => key + 1)}>
+          <Text style={styles.retryButtonText}>Try Again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.goBackText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   // Handle phone call
   const handlePhoneCall = () => {
@@ -210,7 +275,9 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
         <Text style={styles.sectionTitle}>Order Items</Text>
         <FlatList
           data={orderState.items}
-          renderItem={({item}) => (
+          renderItem={({item}) => {
+            const itemData = typeof item?.item === 'object' ? item.item : null;
+            return (
             <View style={styles.item}>
               <Icon
                 name="inventory"
@@ -220,22 +287,23 @@ const OrderHasPacked: React.FC<OrderHasPackedProps> = ({route, navigation}) => {
               />
               <View style={styles.itemDetails}>
                 <Text style={styles.itemName}>
-                  {item.item.name || 'Unknown Item'}
+                  {itemData?.name || 'Unknown Item'}
                 </Text>
                 <Text style={styles.itemMeta}>
-                  {item.item.isPacket === false
-                    ? `${item.quantity} ${item.item.unit}`
-                    : `${item.count} x ₹${(item.item.price || 0).toFixed(2)}`}
+                  {itemData?.isPacket === false
+                    ? `${item.quantity ?? 0} ${itemData?.unit ?? ''}`
+                    : `${item.count ?? 0} x ₹${(itemData?.price || 0).toFixed(2)}`}
                 </Text>
               </View>
               <Text style={styles.itemTotal}>
                 ₹
-                {item.item.isPacket === false
+                {itemData?.isPacket === false
                   ? (item.finalPrice || 0).toFixed(2)
-                  : ((item.item.price || 0) * item.count).toFixed(2)}
+                  : ((itemData?.price || 0) * (item.count ?? 0)).toFixed(2)}
               </Text>
             </View>
-          )}
+            );
+          }}
           keyExtractor={item => item._id}
           scrollEnabled={false}
         />
@@ -351,6 +419,49 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 20,
     backgroundColor: '#ffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffff',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#7f8c8d',
+  },
+  errorTitle: {
+    marginTop: 14,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  errorText: {
+    marginTop: 8,
+    marginHorizontal: 28,
+    fontSize: 15,
+    lineHeight: 21,
+    color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#5E60CE',
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  goBackText: {
+    marginTop: 18,
+    color: '#5E60CE',
+    fontSize: 15,
+    fontWeight: '500',
   },
   header: {
     alignItems: 'center',
