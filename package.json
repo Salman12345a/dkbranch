@@ -1,6 +1,6 @@
 {
   "name": "dkbranch",
-  "version": "3.0.0",
+  "version": "3.5.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -38,7 +38,7 @@
     "react-native-elements": "^3.4.3",
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "^2.14.0",
-    "react-native-image-crop-picker": "^0.42.0",
+    "react-native-image-crop-picker": "^0.51.1",
     "react-native-image-picker": "^8.2.0",
     "react-native-image-resizer": "^1.4.5",
     "react-native-mmkv": "^3.2.0",

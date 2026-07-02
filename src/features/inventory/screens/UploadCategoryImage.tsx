@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ActivityIndicator, Alert, Platform, ToastAndroid, PermissionsAndroid } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, ActivityIndicator, Alert, Platform, ToastAndroid } from 'react-native';
 import CustomButton from '../../../components/ui/CustomButton';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../../../navigation/types';
 import { launchImageLibrary, ImagePickerResponse, Asset } from 'react-native-image-picker';
-import { PERMISSIONS, request, RESULTS, check } from 'react-native-permissions';
 import ImageCropPicker from 'react-native-image-crop-picker';
 import api from '../../../services/api';
 
@@ -16,105 +15,10 @@ const UploadCategoryImage = () => {
   const [image, setImage] = useState<Asset | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    // Check permissions when component mounts
-    checkPermissions();
-  }, []);
-
-  const checkPermissions = async () => {
-    try {
-      if (Platform.OS === 'ios') {
-        setHasPermission(true);
-        return;
-      }
-      
-      // For Android
-      if (Platform.Version < 33) {
-        const granted = await check(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
-        setHasPermission(granted === RESULTS.GRANTED);
-      } else {
-        const granted = await check(PERMISSIONS.ANDROID.READ_MEDIA_IMAGES);
-        setHasPermission(granted === RESULTS.GRANTED);
-      }
-    } catch (err) {
-      console.error('Permission check error:', err);
-      setHasPermission(false);
-    }
-  };
-
-  const requestStoragePermission = async () => {
-    try {
-      if (Platform.OS !== 'android') {
-        setHasPermission(true);
-        return true;
-      }
-      
-      let granted;
-      if (Platform.Version < 33) {
-        try {
-          granted = await request(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
-        } catch (error) {
-          // Fallback to old PermissionsAndroid API if needed
-          console.log('Falling back to PermissionsAndroid API');
-          granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-            {
-              title: "Storage Permission Required",
-              message: "App needs access to your storage to select images",
-              buttonNeutral: "Ask Me Later",
-              buttonNegative: "Cancel",
-              buttonPositive: "OK"
-            }
-          );
-        }
-      } else {
-        try {
-          granted = await request(PERMISSIONS.ANDROID.READ_MEDIA_IMAGES);
-        } catch (error) {
-          console.log('Falling back to PermissionsAndroid API for Android 13+');
-          granted = await PermissionsAndroid.request(
-            'android.permission.READ_MEDIA_IMAGES',
-            {
-              title: "Photos Permission Required",
-              message: "App needs access to your photos to select images",
-              buttonNeutral: "Ask Me Later",
-              buttonNegative: "Cancel",
-              buttonPositive: "OK"
-            }
-          );
-        }
-      }
-      
-      const isGranted = 
-        granted === RESULTS.GRANTED || 
-        granted === PermissionsAndroid.RESULTS.GRANTED;
-        
-      setHasPermission(isGranted);
-      return isGranted;
-    } catch (err) {
-      console.error('Permission request error:', err);
-      setHasPermission(false);
-      return false;
-    }
-  };
 
   const pickImage = async () => {
     try {
       setError('');
-      
-      // Request permission if not already granted
-      if (!hasPermission) {
-        const permissionGranted = await requestStoragePermission();
-        if (!permissionGranted) {
-          setError('Storage permission is required to pick an image.');
-          if (Platform.OS === 'android') {
-            ToastAndroid.show('Storage permission denied', ToastAndroid.SHORT);
-          }
-          return;
-        }
-      }
       
       // Use Promise-based approach instead of callback
       const result = await new Promise<ImagePickerResponse>((resolve) => {
@@ -323,9 +227,6 @@ const UploadCategoryImage = () => {
       ) : (
         <View style={styles.placeholder}>
           <Text>No image selected</Text>
-          {hasPermission === false && (
-            <Text style={styles.permissionText}>Storage permission required</Text>
-          )}
         </View>
       )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -390,12 +291,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     padding: 10,
-  },
-  permissionText: {
-    color: 'red',
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
   },
   error: {
     color: 'red',

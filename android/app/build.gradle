@@ -85,8 +85,8 @@ android {
         applicationId "com.dkbranch"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 24
-        versionName "3.2.0"
+        versionCode 28
+        versionName "3.7.0"
         vectorDrawables.useSupportLibrary = true
         
         // Support for 16 KB memory page sizes (required for Android 15+)
@@ -135,6 +135,12 @@ android {
         }
         abi {
             enableSplit = true
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 

@@ -4,7 +4,7 @@ buildscript {
         minSdkVersion = 24
         compileSdkVersion = 35
         targetSdkVersion = 35
-        ndkVersion = "26.1.10909125"
+        ndkVersion = "27.2.12479018"
         kotlinVersion = "1.9.24"
         googleMobileAdsJson = false
     }
@@ -23,3 +23,37 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+subprojects {
+    plugins.withId("com.android.application") {
+        android {
+            defaultConfig {
+                externalNativeBuild {
+                    cmake {
+                        arguments "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384",
+                                  "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384"
+                    }
+                    ndkBuild {
+                        arguments "APP_SUPPORT_FLEXIBLE_PAGE_SIZES:=true"
+                    }
+                }
+            }
+        }
+    }
+    plugins.withId("com.android.library") {
+        android {
+            defaultConfig {
+                externalNativeBuild {
+                    cmake {
+                        arguments "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384",
+                                  "-DCMAKE_EXE_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384"
+                    }
+                    ndkBuild {
+                        arguments "APP_SUPPORT_FLEXIBLE_PAGE_SIZES:=true"
+                    }
+                }
+            }
+        }
+    }
+}
+

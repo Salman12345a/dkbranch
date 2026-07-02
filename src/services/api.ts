@@ -40,6 +40,7 @@ interface StoreStatusResponse {
 
 const api: AxiosInstance = axios.create({
   baseURL: config.BASE_URL, // Use BASE_URL from config
+  timeout: 15000,           // 15 seconds default timeout
 });
 
 // Utility function to check if a token is a test token
